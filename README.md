@@ -393,7 +393,7 @@ Each plot includes:
 
 ### 5. scatter_plot_BEscreen.py (Optional)
 
-Generates scatter plot comparisons between paired experimental conditions.
+Generates scatter plot comparisons between paired experimental conditions. Considered optional as the exact comparison made and choice is highly dependant on the biological question ( Example : technical assessement spCas9 vs spCas9-NG or biological question WT vs KO)
 
 #### Description
 
