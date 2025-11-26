@@ -23,6 +23,14 @@ This pipeline provides tools to analyze CRISPR Base Editing screens, from consol
 
 ---
 
+
+---
+
+## Recommendation 
+
+If you are working with files from an earlier version and want to annotate them with the current version (which is often preferable), run it without filtering (your original filtering will still be applied). As there have been changes between updates that can impact your results. 
+___
+
 ## Requirements
 
 ### Software
