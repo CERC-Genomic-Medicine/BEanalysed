@@ -243,7 +243,8 @@ def main():
     df = pd.concat([pd.read_excel(excel_file, sheet_name=args.vep_lib_sheet, dtype=str).fillna('') for excel_file in args.vep_excel_file], axis=0)
     ### Verifications
     if len(set(key_file['Sequence']) - set(df['protospacer']))>0:
-        raise ValueError('According to keyfile and excel files not all sgRNA guides were annotated')
+        print([keys_assay[i] for i in set(key_file['Sequence']) - set(df['protospacer']) ])
+        raise ValueError('According to keyfile and excel files not all sgRNA guides were annotated (presented above)')
     df=df.loc[[i in set(key_file['Sequence']) for i in df['protospacer']],] # Keeping relevant
 
     ### Convert to Key file IDs
