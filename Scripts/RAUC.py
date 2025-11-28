@@ -76,16 +76,12 @@ def plot_roc_auc_from_excel_summary(dfs, plotted_value, seed=42, positive_consq_
     """
 
     # Parse VEP consequences
-    if plotted_value == 'pos' :
-        non_plotted_value ='neg'
-    else : 
-        non_plotted_value = 'pos'
     labels = []
     datasets=[]
     for label, data_full in dfs.items():
         figB, axB= plt.subplots(1, 1,figsize=(15,15))
         for cat in sorted(data_full['Consequence_Detail'].unique()):
-            r = data_full[data_full['Consequence_Detail'] == cat]["|".join([non_plotted_value, 'rank'])].sort_values()
+            r = data_full[data_full['Consequence_Detail'] == cat]["|".join([plotted_value, 'rank'])].sort_values()
             y = pd.Series(range(1, len(r)+1)) / len(r)
             axB.plot(r, y, label=cat)
         axB.set_xlabel('Rank')
@@ -104,7 +100,9 @@ def plot_roc_auc_from_excel_summary(dfs, plotted_value, seed=42, positive_consq_
         print(df.loc[[row['Consequence'] in positive_consq_add or row['proteins'] in positive_genes or row['Controls']=='positive_control'  for ind, row in df.iterrows()],'Consequence'].value_counts())
         df = df.loc[df['Truth'].notna(), :]
         y_true = df['Truth']
-        y_pred = df["|".join([plotted_value, 'p-value'])].astype(float).values
+        ranks=df["|".join([plotted_value, 'rank'])]
+        inverted = max(ranks) + 1 - ranks ### Ranks are highest (1) to lowest (max) Rauc want scores with highest (max) lowest (min)
+        y_pred = inverted
         datasets.append((y_pred, y_true))
         print(f'{label} : Total = {len(y_true)}, Positive = {sum(y_true==1)}, Negative = {sum(y_true==0)}')
         labels.append(label)  # filename as label
