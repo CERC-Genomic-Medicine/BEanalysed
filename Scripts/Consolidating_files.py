@@ -1,19 +1,12 @@
 #!/usr/bin/env python3
 
 
-import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, auc
-from sklearn.utils import resample
 import random
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import openpyxl
-import matplotlib.lines as mlines
-from matplotlib.patches import Patch
 import matplotlib.patches as patches
-import matplotlib.colors as mcolors
 import argparse
 from scipy.stats import rankdata
 from scipy.stats import binomtest
@@ -21,12 +14,8 @@ import sys
 import os
 import re
 import warnings
-from itertools import pairwise  # Python 3.10+
-from itertools import combinations, product
+from itertools import product
 import itertools
-from statsmodels.stats.multitest import fdrcorrection
-from scipy.stats import percentileofscore
-from openpyxl.drawing.image import Image
 '''
 AUTHOR: Vincent Chapdelaine <vincent.chapdelaine@mcgill.ca>
 VERSION: 1.1
@@ -47,6 +36,7 @@ parser.add_argument('-l', '--lib_sheet', metavar='str', dest='vep_lib_sheet', re
 parser.add_argument('--Isoform', metavar='str', dest='Isoforms', required=False, type=str, nargs='+', help='Isoforms to select (optional)')
 parser.add_argument('--Pick', dest='PickH', action='store_true', help="Select annotation based on VEP\'s PickH (column PICK) (optional)")
 parser.add_argument('--e', dest='Control_empty', action='store_true', help="Mark sgRNA with no predicted mutation as Negative Controls")
+parser.add_argument('-F', dest='force', action='store_true', help="Bypass the need for absolute overlap in annotation, mageck and Key file")
 parser.add_argument('-n', '--negative_Control', metavar='str', dest='Control_N', required=False, nargs='+', type=str, help='list of negative control protein/region (if no negative controls (empty widows/regions) Biological significance ignored)')
 parser.add_argument('-p', '--positive_Control', metavar='str', dest='Control_P', required=False, nargs='+', type=str, help='list of positive control protein/region ')
 parser.add_argument('-X',"--xvar", dest='variable_names', required=True, help="Comma-separated experimental conditions (e.g., UNT/TREAT,KO/WT) should be reflected in the name of the mageck file * No overlap * eg. treat,treatment")
@@ -135,48 +125,53 @@ def Transform_MaGeCK(filename, value=None):
 
 
 def parse_VEP_excel(excel_files, sheet_name, variant_consequences_mapping, dict_IDs, isoforms_selection=None):
-    df = pd.concat([pd.read_excel(excel_file, sheet_name=sheet_name, dtype=str).fillna('') for excel_file in excel_files], axis=0)
+    vep = pd.concat([pd.read_excel(excel_file, sheet_name=sheet_name, dtype=str).fillna('') for excel_file in excel_files], axis=0)
     replicate_col=sheet_name.split(' ')[2]
     #only Relevant lines
-    df=df.loc[[i in set(dict_IDs) for i in df['#Uploaded_variation']],] # Keeping relevant
-
-
+    vep=vep.loc[[i in set(dict_IDs) for i in vep['#Uploaded_variation']],] # Keeping relevant
+    vep_or=vep.copy()
     ## Verfication
-    df['#Uploaded_variation'] = [dict_IDs[ids] for ids in df['#Uploaded_variation']]
-    nb_guides_annotated = len(set(df['#Uploaded_variation']))
-    already_filtered = nb_guides_annotated == len(df['#Uploaded_variation'])
-
+    vep['ID'] = [dict_IDs[ids] for ids in vep['#Uploaded_variation']]
+    total_Nguide_annotated = set(vep['#Uploaded_variation'])
+    nb_guides_annotated = len(total_Nguide_annotated)
+    already_filtered = nb_guides_annotated == len(vep['#Uploaded_variation'])
     ### Isoform Selection
     if (already_filtered and isoforms_selection):
         print(' Warning : The excel annotations seems to already be filtered')
     if isoforms_selection == 'PickH':
-        df = df.loc[[i==1 for i in df['PICK']],]
+        vep = vep.loc[[i=='1' for i in vep['PICK']],]
     if isinstance(isoforms_selection, list):
-        if set(isoforms_selection) - set(df['Feature']) :
-            raise ValueError(f"isoforms specified are not found in the annotations: {set(isoforms_selection) - set(df['Feature'])}")
+        if set(isoforms_selection) - set(vep['Feature']) :
+            raise ValueError(f"isoforms specified are not found in the annotations: {set(isoforms_selection) - set(vep['Feature'])}")
         else :
-            df = df.loc[[j in set(isoforms_selection) for j in df['Feature']],]
-
-    if nb_guides_annotated < len(df['#Uploaded_variation']) : 
+            vep = vep.loc[[j in set(isoforms_selection) for j in vep['Feature']],]
+    if nb_guides_annotated < len(vep['#Uploaded_variation']) : 
         if isoforms_selection :
+            print(vep[vep.duplicated('#Uploaded_variation', keep=False) == True])
             raise ValueError(f"Annotation remains ambiguous after isoform selection (This should not happen !) Most likely multiple isoforms were specified for the same genes")
         else :
             raise ValueError(f"Annotations are ambiguous, consider filtering")
-    if nb_guides_annotated > len(df['#Uploaded_variation']) :     
+    if nb_guides_annotated > len(vep['#Uploaded_variation']) :     
         if isoforms_selection :
+            print(vep_or.loc[[not j in set(vep['#Uploaded_variation']) for j in vep_or['#Uploaded_variation']],])
             raise ValueError(f"Some guides annotation were lost, most likely not some isoforms are missing from the specified isoforms")
         else :
             raise ValueError(f"Annotations are ambiguous, consider filtering")
 
     for ID, loc, cons, prot_pos, impact, aa, replicate in zip(
-        df['ID'],
-        df['Location'],
-        df['Consequence'],
-        df['Protein_position'],
-        df['IMPACT'],
-        df['Amino_acids'],
-        df[replicate_col]
+        vep['ID'],
+        vep['Location'],
+        vep['Consequence'],
+        vep['Protein_position'],
+        vep['IMPACT'],
+        vep['Amino_acids'],
+        vep[replicate_col]
     ):
+        replicate = ",".join(
+        dict_IDs[i.strip()] 
+        for i in replicate.split(',') 
+        if i.strip() in dict_IDs
+    )
         mutation=[]
         mutations_AA=""
         ### AminoAccid position
@@ -237,15 +232,29 @@ def main():
     args = parser.parse_args()
 
     #### Read keys of the Assay
-    key_file = pd.read_csv(args.keyFile, sep='\t', usecols=['ID_guide', 'Sequence'])
+    try :
+        key_file = pd.read_csv(args.keyFile, sep=',', usecols=['ID_guide', 'Sequence'])
+    except :
+        try :
+            key_file = pd.read_csv(args.keyFile, sep=' ', usecols=['ID_guide', 'Sequence'])
+        except :
+            try :
+                key_file = pd.read_csv(args.keyFile, sep='\t', usecols=['ID_guide', 'Sequence'])
+            except : 
+                raise ValueError('Key file does not have accepted format tab comma or space delimited with columns "ID_guide", "Sequence"')
     keys_assay = dict(zip(key_file['Sequence'],key_file['ID_guide']))
     ### Read Annoation
     df = pd.concat([pd.read_excel(excel_file, sheet_name=args.vep_lib_sheet, dtype=str).fillna('') for excel_file in args.vep_excel_file], axis=0)
     ### Verifications
-    if len(set(key_file['Sequence']) - set(df['protospacer']))>0:
-        print([keys_assay[i] for i in set(key_file['Sequence']) - set(df['protospacer']) ])
-        raise ValueError('According to keyfile and excel files not all sgRNA guides were annotated (presented above)')
-    df=df.loc[[i in set(key_file['Sequence']) for i in df['protospacer']],] # Keeping relevant
+    debug = set(key_file['Sequence']) - set(df['protospacer'])
+    if not args.force and len(set(key_file['Sequence']) - set(df['protospacer']))>0:
+        print(debug)
+        print([keys_assay[i] for i in debug ])
+        raise ValueError('According to keyfile and excel files not all sgRNA guides were annotated')
+    else :
+        print("Warning : The following guides were not annotated and thus removed (because -F was specified)")
+        print([keys_assay[i] for i in debug ])
+        df=df.loc[[i in set(key_file['Sequence']) for i in df['protospacer']],] # Keeping relevant
 
     ### Convert to Key file IDs
     df['old'] = df['ID']
@@ -265,6 +274,11 @@ def main():
         isoforms_selection = None
     VEP= pd.DataFrame(parse_VEP_excel(args.vep_excel_file,args.vep_sheet_file, variant_consequences_mapping, dict_ID_ID , isoforms_selection))
     VEP.columns=['ID', 'consequence', 'consequence_detail', 'impact', 'POS_AA', 'mutations_AA', 'replicate']
+    if not args.force and len(set(dict_ID_sgRNA.keys()) - set(VEP['ID']))>0:
+        print(debug)
+        print([keys_assay[i] for i in debug ])
+        raise ValueError('According to keyfile and excel files not all sgRNA guides were annotated')
+    VEP = VEP.loc[[J in set(key_file['ID_guide']) for J in VEP['ID']]]
 
     Variant_effect=dict(zip(VEP['ID'],VEP['consequence']))
     Variant_effect_full=dict(zip(VEP['ID'],VEP['consequence_detail']))
@@ -289,7 +303,9 @@ def main():
                 data_full = Transform_MaGeCK(file)
             except: 
                 raise ValueError('Main input data (-i) does not have a supported format')
-            if set(data_full['id']) != set(dict_ID_sgRNA.keys()):
+            if args.force:
+                data_full=data_full.loc[[j in set(dict_ID_sgRNA.keys()) for j in data_full['id']],]
+            elif set(data_full['id']) != set(dict_ID_sgRNA.keys()):
                 raise ValueError('Key file and mageck file do not completely overlap')
             data_full.insert(1, 'sgRNA_seq', data_full['id'].map(dict_ID_sgRNA))
             label = "_".join(extract_labels_from_filename(file, parse_treatment_levels(args.variable_names)))
