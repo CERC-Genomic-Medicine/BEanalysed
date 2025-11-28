@@ -82,9 +82,9 @@ Tab-separated files with:
 | GENE1_guide2_r1 | 1.2 | 0.8 |
 | GENE1_guide2_r2 | 1.1 | 0.9 |
 
-### Annotation Excel
+### Annotation Excel files (s)
 
-Excel file with VEP annotations including:
+Excel file(s) with VEP annotations including:
 
 - `#Uploaded_variation`
 - `Location`
