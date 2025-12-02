@@ -251,11 +251,12 @@ def main():
         print(debug)
         print([keys_assay[i] for i in debug ])
         raise ValueError('According to keyfile and excel files not all sgRNA guides were annotated')
-    else :
+    elif args.force and len(set(key_file['Sequence']) - set(df['protospacer']))>0 :
         print("Warning : The following guides were not annotated and thus removed (because -F was specified)")
         print([keys_assay[i] for i in debug ])
         df=df.loc[[i in set(key_file['Sequence']) for i in df['protospacer']],] # Keeping relevant
-
+    else :
+        df=df.loc[[i in set(key_file['Sequence']) for i in df['protospacer']],] # Keeping relevant
     ### Convert to Key file IDs
     df['old'] = df['ID']
     df['ID'] = [keys_assay[i] for i in df.protospacer]
