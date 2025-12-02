@@ -158,7 +158,7 @@ python3 Consolidating_files.py -k FILE -I FILE [FILE ...] -a FILE [FILE ...] \
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `-l`, `--lib_sheet` | `Library` | Name of the library sheet in the annotation Excel file |
-| `--Isoform` | — | Specific transcript isoform(s) to select for annotation |
+| `--Isoform` | — | Specific transcript isoform(s) to select for annotation including Positive and Negative controls (if used) |
 | `--Pick` | `False` | Use VEP's PICK flag (column `PICK`) to select canonical annotations |
 | `--e` | `False` | Mark sgRNAs with no predicted mutation as negative controls |
 | `-n`, `--negative_Control` | — | List of protein/region names to designate as negative controls |
