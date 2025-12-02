@@ -275,10 +275,6 @@ def main():
         isoforms_selection = None
     VEP= pd.DataFrame(parse_VEP_excel(args.vep_excel_file,args.vep_sheet_file, variant_consequences_mapping, dict_ID_ID , isoforms_selection))
     VEP.columns=['ID', 'consequence', 'consequence_detail', 'impact', 'POS_AA', 'mutations_AA', 'replicate']
-    if not args.force and len(set(dict_ID_sgRNA.keys()) - set(VEP['ID']))>0:
-        print(debug)
-        print([keys_assay[i] for i in debug ])
-        raise ValueError('According to keyfile and excel files not all sgRNA guides were annotated')
     VEP = VEP.loc[[J in set(key_file['ID_guide']) for J in VEP['ID']]]
 
     Variant_effect=dict(zip(VEP['ID'],VEP['consequence']))
