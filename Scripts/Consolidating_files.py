@@ -147,13 +147,13 @@ def parse_VEP_excel(excel_files, sheet_name, variant_consequences_mapping, dict_
             vep = vep.loc[[j in set(isoforms_selection) for j in vep['Feature']],]
     if nb_guides_annotated < len(vep['#Uploaded_variation']) : 
         if isoforms_selection :
-            print(vep[vep.duplicated('#Uploaded_variation', keep=False) == True])
+            print(vep[vep.duplicated('#Uploaded_variation', keep=False) == True, '#Uploaded_variation'])
             raise ValueError(f"Annotation remains ambiguous after isoform selection (This should not happen !) Most likely multiple isoforms were specified for the same genes")
         else :
             raise ValueError(f"Annotations are ambiguous, consider filtering")
     if nb_guides_annotated > len(vep['#Uploaded_variation']) :     
         if isoforms_selection :
-            print(vep_or.loc[[not j in set(vep['#Uploaded_variation']) for j in vep_or['#Uploaded_variation']],])
+            print(set(vep_or.loc[[not j in set(vep['#Uploaded_variation']) for j in vep_or['#Uploaded_variation']],'#Uploaded_variation']))
             raise ValueError(f"Some guides annotation were lost, most likely not some isoforms are missing from the specified isoforms")
         else :
             raise ValueError(f"Annotations are ambiguous, consider filtering")
