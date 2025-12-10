@@ -57,7 +57,7 @@ def get_color_palette(num_entries):
 
 
 
-def plot_roc_auc_from_excel_summary(dfs, plotted_value, seed=42, positive_consq_add=('non-sense', 'splice','Positive Control Gene'),negative_genes=[], negative_consq_add=('Negative Control Gene','synonymous','No predicted Mutation'),positive_genes=[], out='output.png'):
+def plot_roc_auc_from_excel_summary(dfs, plotted_value, seed=42, out='output.png'):
     """
     Parameters:
         mageck_files: list of MaGeCK result file paths
@@ -93,11 +93,11 @@ def plot_roc_auc_from_excel_summary(dfs, plotted_value, seed=42, positive_consq_
         ###### RAUC
         df=data_full
         df['Truth']=None
-        df.loc[[row['Consequence'] in negative_consq_add or row['proteins'] in negative_genes or row['Controls']=='negative_control'  for ind, row in df.iterrows()],'Truth']=0
-        N_cons = sum([row['Consequence'] in negative_consq_add for ind, row in df.iterrows()])
-        print(df.loc[[row['Consequence'] in negative_consq_add or row['proteins'] in negative_genes or row['Controls']=='negative_control'  for ind, row in df.iterrows()],'Consequence'].value_counts())
-        df.loc[[row['Consequence'] in positive_consq_add or row['proteins'] in positive_genes or row['Controls']=='positive_control'  for ind, row in df.iterrows()],'Truth']=1
-        print(df.loc[[row['Consequence'] in positive_consq_add or row['proteins'] in positive_genes or row['Controls']=='positive_control'  for ind, row in df.iterrows()],'Consequence'].value_counts())
+        df.loc[[row['Controls']=='negative_control'  for ind, row in df.iterrows()],'Truth']=0
+        print('negative Controls')
+        print(df.loc[[row['Controls']=='negative_control' for ind, row in df.iterrows()],'Consequence_Detail'].value_counts())
+        df.loc[[row['Controls']=='positive_control'  for ind, row in df.iterrows()],'Truth']=1
+        print(df.loc[[row['Controls']=='positive_control'  for ind, row in df.iterrows()],'Consequence_Detail'].value_counts())
         df = df.loc[df['Truth'].notna(), :]
         y_true = df['Truth']
         ranks=df["|".join([plotted_value, 'rank'])]
@@ -141,17 +141,13 @@ def main():
     parser = argparse.ArgumentParser(description="Plot repeat correlations with experimental labels.")
     parser.add_argument('-I',"--input", required=True, dest='excel_file', help="MageCK files per genes")
     parser.add_argument('-R',"--Remove_sheet", required=False, dest='to_remove',  default =[], nargs='+', help="Sheets to remove")
-    parser.add_argument('-V',"--value", required=True, dest='plotted_value', choices = {'pos', 'neg'}, help="value to be plotted (ex Rank|Pos)")
-    parser.add_argument("--Gene_positive", required=False, dest='gene_positive', default =[], nargs='+', help='Which gene should be considered for Positive controls')
-    parser.add_argument('-P',"--Positive_consequence", required=False, dest='positive_consquence', default= ['non-sense', 'splice'],nargs='+', help='Which annotation should be positive controls (default : ["non-sense", "splice"]')
-    parser.add_argument("--Gene_negative", required=False, dest='gene_negative', default =[], nargs='+', help='Which gene should be considered for negative controls')
-    parser.add_argument('-N',"--Negative_consequence", required=False, dest='Negative_consquence', default= ['No predicted Mutation'],nargs='+', help='Which annotation should be Negative controls (default : ["No predicted Mutation"]')
+    parser.add_argument('-V',"--value", required=False, dest='plotted_value', choices = {'pos', 'neg'}, default='neg', help="value to be plotted (ex Rank|Pos)")
     parser.add_argument('-O',"--out", required=False, dest='out', default='RAUC.png', help="Output image path (e.g., output.png)")
     args = parser.parse_args()
     all_sheets = pd.read_excel(args.excel_file, sheet_name=None)
     for k in args.to_remove:
         all_sheets.pop(k, None)
-    plot_roc_auc_from_excel_summary(all_sheets, args.plotted_value, seed=42, positive_consq_add=args.positive_consquence, negative_consq_add=args.Negative_consquence,  positive_genes= args.gene_positive , negative_genes=args.gene_negative, out=args.out)
+    plot_roc_auc_from_excel_summary(all_sheets, args.plotted_value, seed=42, out=args.out)
 
 if __name__ == "__main__":
     main()

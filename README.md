@@ -48,7 +48,7 @@ See `requirements.txt` for complete list.
 
 ### Key File
 
-A tab-delimited file with the following required columns:
+A tab/comma/space-delimited file with the following required columns:
 
 | Column | Description |
 |--------|-------------|
@@ -84,7 +84,7 @@ Tab-separated files with:
 
 ### Annotation Excel files (s)
 
-Excel file(s) with VEP annotations including:
+Excel file(s) (`.xlsx`, `.xls`, `.xlsm`) with VEP annotations including:
 
 - `#Uploaded_variation`
 - `Location`
@@ -99,6 +99,8 @@ And main annotation including:
 
 - `ID`
 - `protospacer`
+
+**Note:** Files must be valid Excel format. If you have a `.zip` file, extract it first before running the pipeline.
 
 ### Domain BED File
 
@@ -147,23 +149,59 @@ python3 Consolidating_files.py -k FILE -I FILE [FILE ...] -a FILE [FILE ...] \
 
 | Argument | Description |
 |----------|-------------|
-| `-k`, `--key` | Tab-delimited key file containing columns `ID_guide` and `Sequence` (protospacer sequence) |
+| `-k`, `--key` | Tab/comma/space-delimited key file containing columns `ID_guide` and `Sequence` (protospacer sequence) |
 | `-I`, `--input` | One or more MaGeCK output files (per-gene results) |
 | `-a`, `--annotation_excel` | Excel file(s) containing predicted variant consequences |
-| `-s`, `--sheet` | Name of the sheet to use from the annotation Excel file (requires format `editor - XXXX`) |
+| `-s`, `--sheet` | Name of the sheet to use from the annotation Excel file |
 | `-X`, `--xvar` | Comma-separated experimental conditions that should be reflected in the MaGeCK filenames (e.g., `UNT/TREAT,KO/WT`) |
 
 #### Optional Arguments
 
 | Argument | Default | Description |
 |----------|---------|-------------|
+| `-e`, `--empty_sheet` | Auto-detect | Sheet name for guides without predicted mutation (see [Empty Sheet Detection](#empty-sheet-detection)) |
 | `-l`, `--lib_sheet` | `Library` | Name of the library sheet in the annotation Excel file |
 | `--Isoform` | — | Specific transcript isoform(s) to select for annotation including Positive and Negative controls (if used) |
 | `--Pick` | `False` | Use VEP's PICK flag (column `PICK`) to select canonical annotations |
-| `--e` | `False` | Mark sgRNAs with no predicted mutation as negative controls |
-| `-n`, `--negative_Control` | — | List of protein/region names to designate as negative controls |
-| `-p`, `--positive_Control` | — | List of protein/region names to designate as positive controls |
+| `--Empty_controls` | `False` | Mark sgRNAs with no predicted mutation as negative controls (even in target genes) |
+| `-F` | `False` | Bypass some validation checks (force mode) |
+| `--Negative_Control_Genes` | — | List of protein/region names to designate as negative controls |
+| `--Positive_Control_Genes` | — | List of protein/region names to designate as positive controls |
+| `--Negative_Control_Consequences` | — | List of consequence types to designate as negative controls |
+| `--Positive_Control_Consequences` | — | List of consequence types to designate as positive controls |
 | `--out` | `summary` | Output filename (without extension) |
+
+#### Empty Sheet Detection
+
+The `-e/--empty_sheet` option specifies which sheet contains guides without predicted mutations (empty editing windows).
+
+**Auto-detection logic** (when `-e` not provided):
+
+1. Attempts to replace `"editor"` with `"no_mutation"` in the annotation sheet name
+   - Example: `"VEP editor Replicate"` → `"VEP no_mutation Replicate"`
+2. If the auto-detected sheet exists, it is used
+3. If the auto-detected sheet does not exist, or if `"editor"` was not in the sheet name, guides missing from VEP annotations are inferred as having no predicted mutation
+
+**Explicit specification:**
+
+```bash
+-e "VEP no_mutation Replicate"
+```
+
+When `-e` is explicitly specified and the sheet is not found, an error is raised (no fallback).
+
+#### Validation
+
+The script performs strict validation to ensure data completeness:
+
+1. **Guide coverage:** All guides in the key file must be present in the library annotation sheet (unless `-F` is used)
+2. **Annotation completeness:** All guides must be present in either the VEP annotation sheet or the empty guides sheet. Missing guides will raise an error:
+   ```
+   Error: The following 2 guide(s) are missing from both VEP annotations 
+   ("VEP editor Replicate") and the empty guides sheet ("VEP no_mutation Replicate"):
+   ['BRCA1_001', 'TP53_002']
+   ```
+3. **File format:** Only valid Excel files are accepted as annotation file.
 
 #### Experimental Condition Naming (`-X`)
 
@@ -186,7 +224,7 @@ This expects filenames containing exactly one of `UNT` or `TREAT` **and** exactl
 
 #### Output
 
-The script generates an Excel file (`<output>.xlsx`) with:
+The script generates an Excel file (`<out>.xlsx`) with:
 - One sheet per experimental condition
 - Columns including guide IDs, sequences, LFC values, p-values, FDR, consequence annotations, and control designations
 
@@ -195,11 +233,24 @@ The script generates an Excel file (`<output>.xlsx`) with:
 **Basic Usage:**
 
 ```bash
-python create_base_summary.py \
+python Consolidating_files.py \
   -k guides_key.txt \
   -I mageck_UNT.gene_summary.txt mageck_TREAT.gene_summary.txt \
   -a vep_annotations.xlsx \
-  -s "VEP Results" \
+  -s "VEP editor Replicate" \
+  -X "UNT/TREAT" \
+  --out my_summary
+```
+
+**With Explicit Empty Sheet:**
+
+```bash
+python Consolidating_files.py \
+  -k guides_key.txt \
+  -I mageck_UNT.gene_summary.txt mageck_TREAT.gene_summary.txt \
+  -a vep_annotations.xlsx \
+  -s "VEP editor Replicate" \
+  -e "VEP no_mutation Replicate" \
   -X "UNT/TREAT" \
   --out my_summary
 ```
@@ -207,37 +258,73 @@ python create_base_summary.py \
 **With Controls and Isoform Selection:**
 
 ```bash
-python create_base_summary.py \
+python Consolidating_files.py \
   -k guides_key.txt \
   -I results/*.gene_summary.txt \
   -a annotations.xlsx \
-  -s "VEP Sheet" \
+  -s "VEP editor Replicate" \
   -X "UNT/TREAT,KO/WT" \
   --Pick \
-  -n AAVS1 ROSA26 \
-  -p TP53 \
-  --e \
+  --Negative_Control_Genes AAVS1 ROSA26 \
+  --Positive_Control_Genes TP53 \
+  --Empty_controls \
   --out full_summary
 ```
 
 **Using Specific Isoforms:**
 
 ```bash
-python create_base_summary.py \
+python Consolidating_files.py \
   -k guides_key.txt \
   -I results/*.gene_summary.txt \
   -a annotations.xlsx \
-  -s "VEP Sheet" \
+  -s "VEP editor Replicate" \
   -X "UNT/TREAT" \
   --Isoform ENST00000123456 ENST00000789012 \
   --out isoform_summary
 ```
 
+#### Python Module Usage
+
+The script can also be imported and used as a Python module:
+
+```python
+from Consolidating_files import (
+    BaseSummaryGenerator,
+    ControlConfig
+)
+
+# Configure controls
+controls = ControlConfig(
+    negative_genes={"AAVS1", "NonTargeting"},
+    positive_genes={"Essential1"},
+    empty_as_negative=True
+)
+
+# Create generator
+generator = BaseSummaryGenerator(
+    key_file="guides.csv",
+    annotation_files=["annotations.xlsx"],
+    annotation_sheet="VEP editor Replicate",
+    library_sheet="Library",
+    empty_sheet="VEP no_mutation Replicate",  # Optional
+    control_config=controls
+)
+
+# Generate summary
+generator.generate_summary(
+    mageck_files=["mageck_TREAT_KO.txt", "mageck_UNT_WT.txt"],
+    treatment_spec="TREAT/UNT,KO/WT",
+    output_path="summary.xlsx"
+)
+```
+
 #### Notes
 
 - The `--Pick` and `--Isoform` options are mutually exclusive
-- When using `--e`, guides targeting empty windows are automatically designated as negative controls
+- When using `--Empty_controls`, guides targeting empty windows are automatically designated as negative controls
 - Biological significance analysis requires negative controls to be defined
+- All guides must be accounted for in either the VEP annotation sheet or the empty guides sheet
 
 ---
 
@@ -247,21 +334,15 @@ Generates scatter plot grids comparing replicate measurements to assess reproduc
 
 #### Description
 
-This script generates scatter plot grids comparing replicate measurements (e.g., `_r1` vs `_r2`) from CRISPR screen data. It calculates Pearson correlations and produces publication-ready figures to assess replicate reproducibility.
+This script creates scatter plot grids comparing log fold change (or other metrics) between biological/technical replicates. It calculates Pearson correlation coefficients and visualizes the reproducibility of the screen.
 
 #### Usage
 
 ```bash
-python repeat_on_repeat.py -F <input_files> --xvar <conditions> [options]
+python RepeatOnRepeat.py -F FILE [FILE ...] [options]
 ```
 
-#### Required Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `--xvar` | Comma-separated experimental conditions encoded in filenames (e.g., `UNT/TREAT,KO/WT`) |
-
-#### Optional Arguments
+#### Arguments
 
 | Argument | Default | Description |
 |----------|---------|-------------|
@@ -299,7 +380,7 @@ python RAUC_excel.py -I EXCEL_FILE -V {pos,neg} [options]
 
 | Argument | Description |
 |----------|-------------|
-| `-I`, `--input` | Excel file containing MaGeCK results (output from `create_base_summary.py`) |
+| `-I`, `--input` | Excel file containing MaGeCK results (output from `Consolidating_files.py`) |
 | `-V`, `--value` | Direction to analyze: `pos` (positive selection) or `neg` (negative selection) |
 
 #### Optional Arguments
@@ -307,10 +388,6 @@ python RAUC_excel.py -I EXCEL_FILE -V {pos,neg} [options]
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `-R`, `--Remove_sheet` | — | Sheet name(s) to exclude from analysis |
-| `--Gene_positive` | — | Gene name(s) to designate as positive controls |
-| `-P`, `--Positive_consequence` | `["non-sense", "splice"]` | Consequence annotations to treat as positive controls |
-| `--Gene_negative` | — | Gene name(s) to designate as negative controls |
-| `-N`, `--Negative_consequence` | `["No predicted Mutation"]` | Consequence annotations to treat as negative controls |
 | `-O`, `--out` | `RAUC.png` | Output image path |
 
 #### Control Classification
@@ -358,7 +435,7 @@ python BEscreen_lollipop_plot_simplified.py -b BED_FILE -i EXCEL_FILE \
 | Argument | Description |
 |----------|-------------|
 | `-b`, `--bed` | BED-like file containing protein features (start, end, name, protein) |
-| `-i`, `--input` | Excel file from MaGeCK/VEP output (from `create_base_summary.py`) |
+| `-i`, `--input` | Excel file from MaGeCK/VEP output (from `Consolidating_files.py`) |
 | `--Bio_threshold` | Biological significance threshold (two-sided quantile, e.g., `0.05`) |
 
 #### Optional Arguments
@@ -409,7 +486,7 @@ python scatter_plot_BEscreen.py -I FILE -X string [options]
 
 | Argument | Description |
 |----------|-------------|
-| `-I`, `--input` | Excel file containing MaGeCK/VEP results (output from `create_base_summary.py`) |
+| `-I`, `--input` | Excel file containing MaGeCK/VEP results (output from `Consolidating_files.py`) |
 | `-X`, `--comparison` | Comparison to plot, encoded as paired conditions (e.g., `UNT/TREAT`) |
 
 #### Optional Arguments
@@ -436,7 +513,7 @@ The script generates a PDF file containing:
 - Legend for consequence types and significance
 
 **Default naming:**
-- With `-O`: `<output>.pdf`
+- With `-O`: `<o>.pdf`
 - Without `-O`: `<comparison>_<proteins>_<variable>.pdf`
 
 ---
@@ -459,7 +536,7 @@ python ChimeraX_scoring.py -i FILE -b FILE [options]
 
 | Argument | Description |
 |----------|-------------|
-| `-i`, `--input` | Excel file containing MaGeCK/VEP results (output from `create_base_summary.py`) |
+| `-i`, `--input` | Excel file containing MaGeCK/VEP results (output from `Consolidating_files.py`) |
 | `-b`, `--lift_over` | Tab-delimited file mapping protein positions to PDB chain coordinates |
 
 #### Optional Arguments
@@ -503,10 +580,24 @@ bash chimeraX.sh <your_3D_model> <your_attribute_file>
 
 ---
 
+## Error Messages
+
+The pipeline provides informative error messages for common issues:
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Unsupported file format ".zip"` | Annotation file is a zip archive | Extract the `.xlsx` file from the archive |
+| `Annotation file not found` | File path is incorrect | Check the file path |
+| `Sheet "X" not found` | Sheet name doesn't exist | Check available sheets listed in the error |
+| `guide(s) are missing from both VEP annotations and empty sheet` | Guides not annotated | Ensure all guides have VEP annotations or are listed in the empty sheet |
+| `Specified empty sheet "X" not found` | Explicit `-e` sheet doesn't exist | Check sheet name or remove `-e` to use auto-detection |
+
+---
+
 ## Author
 
 Vincent Chapdelaine (vincent.chapdelaine@mcgill.ca)
 
 ## Version
 
-1.1 (2024)
+2.0 (2024)
