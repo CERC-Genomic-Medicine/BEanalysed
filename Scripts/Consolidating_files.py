@@ -72,6 +72,8 @@ VARIANT_CONSEQUENCES_MAPPING = {
 CONSEQUENCE_PRIORITY = ['non_coding', 'regulatory', 'synonymous', 'missense', 'non-sense', 'splice']
 
 
+
+
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
@@ -584,6 +586,7 @@ class VEPAnnotationParser:
         """Parse individual annotations from VEP DataFrame."""
         for _, row in vep.iterrows():
             guide_id = row['ID']
+            gene = row['']
             prot_pos = row.get('Protein_position', '')
             aa = row.get('Amino_acids', '')
             cons = row.get('Consequence', '')
@@ -779,7 +782,7 @@ class ControlAssigner:
         if sum(mask) < 10 :
             print(f'Warning : fewer than 10 {consequence_label}s were detected this may cause an issue.')
         if set(df.loc[mask,'proteins']) != set(genes) :
-            raise ValueError(f'{set(genes) - set(df.loc[mask,'proteins'])} gene(s) / region(s) did not yield any controls')
+            raise ValueError(f'{set(genes) - set(df.loc[mask,"proteins"])} gene(s) / region(s) did not yield any controls')
 
         
 
