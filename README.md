@@ -1,4 +1,4 @@
-# BEscreened : CRISPR Base Editing Screen Analysis Pipeline (will have to change the name, too close to a published tool)
+# BEanalysed: CRISPR Base Editing Screen Analysis Pipeline
 
 A comprehensive toolkit for analyzing CRISPR Base Editing screens derived from crispr-BEasy.
 
