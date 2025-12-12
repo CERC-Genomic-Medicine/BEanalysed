@@ -1,4 +1,4 @@
-# BEscreened : CRISPR Base Editing Screen Analysis Pipeline
+# BEscreened : CRISPR Base Editing Screen Analysis Pipeline (will have to change the name, too close to a published tool)
 
 A comprehensive toolkit for analyzing CRISPR Base Editing screens derived from crispr-BEasy.
 
@@ -178,7 +178,7 @@ The `-e/--empty_sheet` option specifies which sheet contains guides without pred
 **Auto-detection logic** (when `-e` not provided):
 
 1. Attempts to replace `"editor"` with `"no_mutation"` in the annotation sheet name
-   - Example: `"VEP editor Replicate"` → `"VEP no_mutation Replicate"`
+   - Example: `"editor - YourEditorName"` → `"no_mutation - YourEditorName"`
 2. If the auto-detected sheet exists, it is used
 3. If the auto-detected sheet does not exist, or if `"editor"` was not in the sheet name, guides missing from VEP annotations are inferred as having no predicted mutation
 
@@ -213,11 +213,16 @@ The `-X` argument defines how experimental conditions are encoded in filenames. 
 -X "UNT/TREAT,KO/WT"
 ```
 
-This expects filenames containing exactly one of `UNT` or `TREAT` **and** exactly one of `KO` or `WT`.
+This expects filenames containing exactly one of `UNT` or `TREAT` **and** exactly one of `KO` or `WT' per 'UNT' and 'TREAT'
 
 **Valid filenames:**
 - `results_UNT_KO.gene_summary.txt`
 - `results_TREAT_WT.gene_summary.txt`
+- `results_UNT_WT.gene_summary.txt`
+- `results_TREAT_KO.gene_summary.txt`
+
+**Additionnal Consideration**
+Condition names should not contain one another. such as TREATED/UNTREATED as TREATED is found in UNTREATED.
 
 **Invalid filenames:**
 - `results_UNT_TREAT.gene_summary.txt` (contains both conditions from a pair)
@@ -373,7 +378,7 @@ Generates ROC-AUC curves for screen quality assessment.
 #### Usage
 
 ```bash
-python RAUC_excel.py -I EXCEL_FILE -V {pos,neg} [options]
+python RAUC.py -I EXCEL_FILE -V {pos,neg} [options]
 ```
 
 #### Required Arguments
@@ -392,19 +397,7 @@ python RAUC_excel.py -I EXCEL_FILE -V {pos,neg} [options]
 
 #### Control Classification
 
-**Positive Controls (Expected Hits):**
-
-Guides classified as positive controls if any of the following are true:
-- `Consequence` matches values in `-P` (default: `non-sense`, `splice`)
-- `proteins` matches values in `--Gene_positive`
-- `Controls` column equals `positive_control`
-
-**Negative Controls (Expected Non-Hits):**
-
-Guides classified as negative controls if any of the following are true:
-- `Consequence` matches values in `-N` (default: `No predicted Mutation`)
-- `proteins` matches values in `--Gene_negative`
-- `Controls` column equals `negative_control`
+Controls are as defined in the consolidation script.
 
 #### Output
 
@@ -457,7 +450,7 @@ python BEscreen_lollipop_plot_simplified.py -b BED_FILE -i EXCEL_FILE \
 The script generates PDF files for each protein in each experimental condition:
 
 ```
-BEscreen_<sheet_name>_<protein>.pdf
+BEscreened_<sheet_name>_<protein>.pdf
 ```
 
 Each plot includes:
