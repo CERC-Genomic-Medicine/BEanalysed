@@ -586,7 +586,6 @@ class VEPAnnotationParser:
         """Parse individual annotations from VEP DataFrame."""
         for _, row in vep.iterrows():
             guide_id = row['ID']
-            gene = row['']
             prot_pos = row.get('Protein_position', '')
             aa = row.get('Amino_acids', '')
             cons = row.get('Consequence', '')
