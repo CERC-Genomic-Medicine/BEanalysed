@@ -183,6 +183,8 @@ The `-e/--empty_sheet` option specifies which sheet contains guides without pred
 2. If the auto-detected sheet exists, it is used
 3. If the auto-detected sheet does not exist, or if `"editor"` was not in the sheet name, guides missing from VEP annotations are inferred as having no predicted mutation
 
+** Reminder '' allows a string of character including spaces to be used as a single argument.
+
 **Explicit specification:**
 
 ```bash
