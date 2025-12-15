@@ -94,6 +94,7 @@ Excel file(s) (`.xlsx`, `.xls`, `.xlsm`) with VEP annotations including:
 - `Amino_acids`
 - `Feature` (for isoform selection)
 - `PICK` (if using `--Pick`)
+- `Replicate` or column named after the editor (derived from the sheet name `"editor - YourEditorName"`)
 
 And main annotation including:
 
@@ -152,7 +153,7 @@ python3 Consolidating_files.py -k FILE -I FILE [FILE ...] -a FILE [FILE ...] \
 | `-k`, `--key` | Tab/comma/space-delimited key file containing columns `ID_guide` and `Sequence` (protospacer sequence) |
 | `-I`, `--input` | One or more MaGeCK output files (per-gene results) |
 | `-a`, `--annotation_excel` | Excel file(s) containing predicted variant consequences |
-| `-s`, `--sheet` | Name of the sheet to use from the annotation Excel file |
+| `-s`, `--sheet` | Name of the sheet to use from the annotation Excel file (naming consideration see [Empty Sheet Detection](#empty-sheet-detection) and  |
 | `-X`, `--xvar` | Comma-separated experimental conditions that should be reflected in the MaGeCK filenames (e.g., `UNT/TREAT,KO/WT`) |
 
 #### Optional Arguments
@@ -185,10 +186,17 @@ The `-e/--empty_sheet` option specifies which sheet contains guides without pred
 **Explicit specification:**
 
 ```bash
--e "VEP no_mutation Replicate"
+-e "VEP_no_mutation"
 ```
 
 When `-e` is explicitly specified and the sheet is not found, an error is raised (no fallback).
+
+#### Replicate Window
+
+The script will also output information considering replicate windows (i.e. which guides offer predicted replicate window).
+**Auto-detection logic**
+1. column named 'Replicate'
+2. Column named after you editor, derived from sheet name with `"editor - YourEditorName"` (including spaces)
 
 #### Validation
 
