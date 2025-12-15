@@ -453,7 +453,7 @@ class VEPAnnotationParser:
             sheet_parts = sheet_name.split(' ')
             if len(sheet_parts) != 3 :
                 raise ValueError(
-                f"The annotations must have a Replicate column"
+                f"The annotations must have a Replicate column \n \n  Or with previous iteration, a column named after the third part of the sheet name when space separated i.e. editor - XXXX"
             )
             replicate_col = sheet_parts[2]
 
