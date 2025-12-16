@@ -105,10 +105,11 @@ And main annotation including:
 
 ### Domain BED File
 
-Tab-delimited file with 4 columns:
+Tab-delimited file with 4 columns (5 with optional color) :
 
 | Column | Description |
 |--------|-------------|
+| `proteins` | Proteins asociated with the domains |
 | `name` | Domain name |
 | `start` | Start position |
 | `end` | End position |
