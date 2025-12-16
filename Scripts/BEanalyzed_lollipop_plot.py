@@ -41,7 +41,7 @@ parser.add_argument('-b', '--bed', required=True, dest='bed_file', help='BED fil
 parser.add_argument('-i', '--input', required=True, dest='excel_file', help='Excel file from MaGeCK/VEP output')
 parser.add_argument('--stat_method', default='quantile',dest='stat_method', choices={'binom_sign', 'quantile', 'sign_test'})
 parser.add_argument('--Bio_threshold', dest='Biological_threshold',type=float, required=True, help='Biological threshold (two-sided)')
-parser.add_argument('--scheme_location', dest='scheme_loc', default='top', choices={'top', 'bottom', 'middle'})
+parser.add_argument('--scheme_location', dest='scheme_loc', default='middle', choices={'top', 'bottom', 'middle'})
 parser.add_argument('--histogram', dest='histogram', action='store_true', help='Add histogram')
 parser.add_argument('--violin', dest='violin', action='store_true', help='Add violin plot')
 parser.add_argument('--violin_detail', dest='violin_detail', default='low', choices={'low', 'high'})
@@ -69,6 +69,7 @@ consequence_mapping_2 = {
     'non-sense': 'red',
     'splice': 'gold',
     'Negative Control Gene': 'lightgray',
+    'Positive Control Gene': 'dimgray',
     'No predicted Mutation': 'darkgray'
 }
 
@@ -558,10 +559,14 @@ if __name__ == '__main__':
                 ratios= [20, 1]
                 nfigure = 2       
             fig = plt.figure(figsize=(40 if args.violin else 25, 25 if args.histogram else 24,))
-            if args.violin:
-                gs = gridspec.GridSpec(nfigure + args.histogram, args.violin + 1, hspace=0.05, wspace=0, width_ratios=[1,0.5], height_ratios=[2] + ratios, left=0.05, right=1, top=0.95, bottom=0.05)
+            if args.histogram:
+                height_ratios = [2] + ratios
             else :
-                gs = gridspec.GridSpec(nfigure + args.histogram, args.violin + 1, hspace=0.05, wspace=0, height_ratios=[2] + ratios, left=0.05, right=1, top=0.95, bottom=0.05)
+                height_ratios = ratios
+            if args.violin:
+                gs = gridspec.GridSpec(nfigure + args.histogram, args.violin + 1, hspace=0.05, wspace=0, width_ratios=[1,0.5], height_ratios=height_ratios, left=0.05, right=1, top=0.95, bottom=0.05)
+            else :
+                gs = gridspec.GridSpec(nfigure + args.histogram, args.violin + 1, hspace=0.05, wspace=0, height_ratios=height_ratios, left=0.05, right=1, top=0.95, bottom=0.05)
             if args.violin:
                 if args.scheme_loc == 'middle' :
                     ax_low = fig.add_subplot(gs[0 + args.histogram,0])
@@ -606,13 +611,13 @@ if __name__ == '__main__':
             pvalue_mapping={fr"p-value $\leq {args.p_thresh:.2f}$" : 28, fr"p-value > ${args.p_thresh:.2f}$" : 20}
             ticks, labels = generate_ticks_with_labels(minimum, maximum, 10)
             if args.scheme_loc == 'middle' :
-                create_lollipop_plot(ax_low, data.loc[data['lfc']>=0,'Position'], data.loc[data['lfc']>=0,'lfc'], color=colors[data['lfc']>=0], marker=markers[data['lfc']>=0], size=sizes[data['lfc']>=0], alpha=alphas ,stemline_remove=args.no_stem,lines=line_max,yaxis=(0,ymax))
+                create_lollipop_plot(ax_low, data.loc[data['lfc']>=0,'Position'], data.loc[data['lfc']>=0,'lfc'], color=colors[data['lfc']>=0], marker=markers[data['lfc']>=0], size=sizes[data['lfc']>=0], alpha=alphas ,stemline_remove=args.no_stem,lines=[line_max],yaxis=(0,ymax))
                 if args.highlight:
                     for hl in args.highlight : 
                         protein_hl, feature=hl.split('-')
                         if protein_hl == protein :
                             highlight_region(bed_adjusted,ax_low,feature)
-                create_lollipop_plot(ax_high, data.loc[data['lfc']<0,'Position'], data.loc[data['lfc']<0,'lfc'], color=colors[data['lfc']<0], marker=markers[data['lfc']<0], size=sizes[data['lfc']<0],Custom_Xaxis=[ticks, labels], alpha=alphas, stemline_remove=args.no_stem, xlabel = 'Amino acid position', lines=line_min,yaxis=(ymin,0))
+                create_lollipop_plot(ax_high, data.loc[data['lfc']<0,'Position'], data.loc[data['lfc']<0,'lfc'], color=colors[data['lfc']<0], marker=markers[data['lfc']<0], size=sizes[data['lfc']<0],Custom_Xaxis=[ticks, labels], alpha=alphas, stemline_remove=args.no_stem, xlabel = 'Amino acid position', lines=[line_min],yaxis=(ymin,0))
                 if args.highlight:
                     for hl in args.highlight : 
                         protein_hl, feature=hl.split('-')
@@ -621,7 +626,7 @@ if __name__ == '__main__':
                 leg=plot_genomic_regions(bed_adjusted,ax_scheme ,legend_loc='upper left', title='',legend_title='Features',Maximum=maximum)
                 add_legend(fig, consequence_mapping, pvalue_mapping,transparency=Biosig_labels ,add_legend=leg,fdr=args.fdr)
             else :
-                create_lollipop_plot(ax_low, data['Position'], data['lfc'], color=colors, marker=markers, size=sizes,stemline_remove=args.no_stem, alpha=alphas,Custom_Xaxis=[ticks, labels] if args.scheme_loc == 'top' else None, xlabel = 'Amino acid position',yaxis=(ymin,ymax))
+                create_lollipop_plot(ax_low, data['Position'], data['lfc'], color=colors, marker=markers, size=sizes,stemline_remove=args.no_stem, alpha=alphas,Custom_Xaxis=[ticks, labels] if args.scheme_loc == 'top' else None, lines = [line_max,line_min], xlabel = 'Amino acid position',yaxis=(ymin,ymax))
                 leg=plot_genomic_regions(bed_adjusted,ax_scheme, legend_loc='upper left', title='',legend_title='Features',Maximum=maximum,Custom_Xaxis=[ticks, labels] if args.scheme_loc == 'bottom' else None ,xlabel = 'Amino acid position')
                 add_legend(fig, consequence_mapping, pvalue_mapping,transparency=Biosig_labels,add_legend=leg,fdr=args.fdr)
                 if args.highlight:
