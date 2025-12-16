@@ -10,10 +10,11 @@ A comprehensive toolkit for analyzing CRISPR Base Editing screens derived from c
 - [Pipeline Steps](#pipeline-steps)
   1. [Consolidating Files](#1-consolidating_filespy)
   2. [Repeat on Repeat](#2-repeatonrepeatpy)
-  3. [RAUC Analysis](#3-raucpy)
-  4. [Lollipop Plots](#4-bescreen_lollipop_plotpy)
-  5. [Scatter Plots](#5-scatter_plot_bescreenpy-optional)
-  6. [ChimeraX Visualization](#6-chimerax_scoringpy-and-chimeraxsh)
+  3. [RAUC Analysis](#3-BE_RAUCedpy)
+  4. [RAUC Analysis per Gene](#4-BE_rauc_PerGenepy)
+  5. [Lollipop Plots](#5-BEanalyzed_lollipop_plotpy)
+  6. [Scatter Plots](#6-scatter_plot_bescreenpy-optional)
+  7. [ChimeraX Visualization](#7-chimerax_scoringpy-and-chimeraxsh)
 
 ---
 
@@ -382,14 +383,14 @@ The script generates a PDF file containing:
 
 ---
 
-### 3. RAUC.py
+### 3. BE_RAUCed.py
 
 Generates ROC-AUC curves for screen quality assessment.
 
 #### Usage
 
 ```bash
-python RAUC.py -I EXCEL_FILE -V {pos,neg} [options]
+python BE_RAUCed.py -I EXCEL_FILE -V {pos,neg} [options]
 ```
 
 #### Required Arguments
@@ -419,7 +420,27 @@ The script generates:
 
 ---
 
-### 4. BEscreen_lollipop_plot.py
+
+### 4. BE_rauc_PerGene.py
+#### Required Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `-I`, `--input` | Excel file containing MaGeCK results (output from `Consolidating_files.py`) |
+| `-V`, `--value` | Direction to analyze: `pos` (positive selection) or `neg` (negative selection) |
+
+#### Optional Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `-R`, `--Remove_sheet` | — | Sheet name(s) to exclude from analysis |
+| `-O`, `--out` | `RAUC.png` | Output image path |
+| `-G`, `--Genes` | `All Genes` | will analyse all genes (one per pannel) |
+|`--Negative_Control_Consequences`|`No predicted Mutation`|list of negative control consequences (accepted 'splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A')|
+|`--Positive_Control_Consequences`|`'splice' 'non-sense'`|list of negative control consequences (accepted 'splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A')|
+
+
+### 5. BEanalyzed_lollipop_plot.py
 
 Creates lollipop plots with protein domain annotations.
 
@@ -472,7 +493,7 @@ Each plot includes:
 
 ---
 
-### 5. scatter_plot_BEscreen.py (Optional)
+### 6. scatter_plot_BEscreen.py (Optional)
 
 Generates scatter plot comparisons between paired experimental conditions. Considered optional as the exact comparison made and choice is highly dependant on the biological question ( Example : technical assessement spCas9 vs spCas9-NG or biological question WT vs KO)
 
@@ -522,7 +543,7 @@ The script generates a PDF file containing:
 
 ---
 
-### 6. ChimeraX_scoring.py and chimeraX.sh
+### 7. ChimeraX_scoring.py and chimeraX.sh
 
 Maps screen results to 3D protein structures for visualization in ChimeraX.
 
@@ -595,6 +616,7 @@ The pipeline provides informative error messages for common issues:
 | `Sheet "X" not found` | Sheet name doesn't exist | Check available sheets listed in the error |
 | `guide(s) are missing from both VEP annotations and empty sheet` | Guides not annotated | Ensure all guides have VEP annotations or are listed in the empty sheet |
 | `Specified empty sheet "X" not found` | Explicit `-e` sheet doesn't exist | Check sheet name or remove `-e` to use auto-detection |
+| Extra arguments | space within an argument | specify the arguments with '' |
 
 ---
 
