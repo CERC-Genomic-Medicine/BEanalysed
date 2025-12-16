@@ -516,10 +516,10 @@ if __name__ == '__main__':
         data_full['p_value']=pd.to_numeric(data_full['p_value'])
         ### trouble shoot user error proteins bed and protein input file
         if not protein_list.issubset(proteins): 
-            raise ValueError(f'Not all proteins/regions in the main input file (-i) is present in the Bed-like file:{set(proteins)-set(bed_full.proteins)} \n')
+            raise ValueError(f'Not all proteins/regions in the bed-like file are present in the main inputs proteins columns:{set(bed_full.proteins) - set(proteins)} \n')
         ### Test highlight list
         if args.highlight:
-            if not set(args.highlight).issubset(set(bed_full['proteins'] + '-' + bed_full['name'])):
+            if not set(args.highlight).issubset(bed_full['name']):
                 raise ValueError(f'Not all proteins/regions to be highlighted are in the bed-like file under the protein-feature format :{set(args.highlight)-set(bed_full["proteins"] + "-" + bed_full["name"])} \n')
         
         for protein in protein_list:
