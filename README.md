@@ -13,7 +13,7 @@ A comprehensive toolkit for analyzing CRISPR Base Editing screens derived from c
   3. [RAUC Analysis](#3-BE_RAUCedpy)
   4. [RAUC Analysis per Gene](#4-BE_rauc_PerGenepy)
   5. [Lollipop Plots](#5-BEanalyzed_lollipop_plotpy)
-  6. [Scatter Plots](#6-scatter_plot_bescreenpy-optional)
+  6. [Scatter Plots](#6-scatter_plot_BEanalysedpy-optional)
   7. [ChimeraX Visualization](#7-chimerax_scoringpy-and-chimeraxsh)
 
 ---
@@ -493,7 +493,7 @@ Each plot includes:
 
 ---
 
-### 6. scatter_plot_BEscreen.py (Optional)
+### 6. scatter_plot_BEanalysed.py (Optional)
 
 Generates scatter plot comparisons between paired experimental conditions. Considered optional as the exact comparison made and choice is highly dependant on the biological question ( Example : technical assessement spCas9 vs spCas9-NG or biological question WT vs KO)
 
