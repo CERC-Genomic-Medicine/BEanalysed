@@ -468,7 +468,7 @@ python BEscreen_lollipop_plot_simplified.py -b BED_FILE -i EXCEL_FILE \
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--stat_method` | `quantile` | Method for biological significance: `quantile`, `binom_sign`, or `sign_test` |
-| `--scheme_location` | `top` | Position of domain scheme: `top`, `middle`, or `bottom` |
+| `--scheme_location` | `top` | Position of domain scheme: `top` or `bottom` |
 | `--histogram` | `False` | Add histogram of guide positions above the plot |
 | `--violin` | `False` | Add violin/box plots showing LFC distribution by consequence |
 | `--violin_detail` | `low` | Violin plot grouping: `low` (by consequence) or `high` (by detailed consequence) |

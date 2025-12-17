@@ -41,7 +41,7 @@ parser.add_argument('-b', '--bed', required=True, dest='bed_file', help='BED fil
 parser.add_argument('-i', '--input', required=True, dest='excel_file', help='Excel file from MaGeCK/VEP output')
 parser.add_argument('--stat_method', default='quantile',dest='stat_method', choices={'binom_sign', 'quantile', 'sign_test'})
 parser.add_argument('--Bio_threshold', dest='Biological_threshold',type=float, required=True, help='Biological threshold (two-sided)')
-parser.add_argument('--scheme_location', dest='scheme_loc', default='middle', choices={'top', 'bottom', 'middle'})
+parser.add_argument('--scheme_location', dest='scheme_loc', default='top', choices={'top', 'bottom'})
 parser.add_argument('--histogram', dest='histogram', action='store_true', help='Add histogram')
 parser.add_argument('--violin', dest='violin', action='store_true', help='Add violin plot')
 parser.add_argument('--violin_detail', dest='violin_detail', default='low', choices={'low', 'high'})
@@ -552,9 +552,6 @@ if __name__ == '__main__':
             if args.scheme_loc == 'top' :
                 ratios= [1, 20]
                 nfigure = 2
-            elif args.scheme_loc == 'middle' :
-                ratios= [10, 1, 10]
-                nfigure = 3
             else :
                 ratios= [20, 1]
                 nfigure = 2       
@@ -568,25 +565,14 @@ if __name__ == '__main__':
             else :
                 gs = gridspec.GridSpec(nfigure + args.histogram, args.violin + 1, hspace=0.05, wspace=0, height_ratios=height_ratios, left=0.05, right=1, top=0.95, bottom=0.05)
             if args.violin:
-                if args.scheme_loc == 'middle' :
-                    ax_low = fig.add_subplot(gs[0 + args.histogram,0])
-                    ax_scheme = fig.add_subplot(gs[1 + args.histogram, 0])
-                    ax_high = fig.add_subplot(gs[2 + args.histogram, 0])
-                    ax_violin_input = (fig, gs[:, 1], None)
-                else :
-                    ax_low = fig.add_subplot(gs[(args.scheme_loc != 'bottom') + args.histogram,0])
-                    ax_scheme = fig.add_subplot(gs[(args.scheme_loc == 'bottom') + args.histogram, 0], sharex=ax_low)
-                    ax_violin_input = (fig, gs[(args.scheme_loc != 'bottom') + args.histogram, 1],ax_low)
+                ax_low = fig.add_subplot(gs[(args.scheme_loc != 'bottom') + args.histogram,0])
+                ax_scheme = fig.add_subplot(gs[(args.scheme_loc == 'bottom') + args.histogram, 0], sharex=ax_low)
+                ax_violin_input = (fig, gs[(args.scheme_loc != 'bottom') + args.histogram, 1],ax_low)
                 if args.histogram :
                     ax_histofram = fig.add_subplot(gs[0,0], sharex=ax_low)
             else :
-                if args.scheme_loc == 'middle' :
-                    ax_low = fig.add_subplot(gs[0 + args.histogram])
-                    ax_scheme = fig.add_subplot(gs[1 + args.histogram])
-                    ax_high = fig.add_subplot(gs[2 + args.histogram])
-                else : 
-                    ax_low = fig.add_subplot(gs[(args.scheme_loc != 'bottom') + args.histogram])
-                    ax_scheme = fig.add_subplot(gs[(args.scheme_loc == 'bottom') + args.histogram])
+                ax_low = fig.add_subplot(gs[(args.scheme_loc != 'bottom') + args.histogram])
+                ax_scheme = fig.add_subplot(gs[(args.scheme_loc == 'bottom') + args.histogram])
                 if args.histogram :
                     ax_histofram = fig.add_subplot(gs[0])
             ### Histogram plot and figure grid config (according to histogram yes/no)
@@ -610,30 +596,14 @@ if __name__ == '__main__':
             sizes = pd.Series([28 if i < args.p_thresh else 20 for i in data['p_value']], index=data.index)
             pvalue_mapping={fr"p-value $\leq {args.p_thresh:.2f}$" : 28, fr"p-value > ${args.p_thresh:.2f}$" : 20}
             ticks, labels = generate_ticks_with_labels(minimum, maximum, 10)
-            if args.scheme_loc == 'middle' :
-                create_lollipop_plot(ax_low, data.loc[data['lfc']>=0,'Position'], data.loc[data['lfc']>=0,'lfc'], color=colors[data['lfc']>=0], marker=markers[data['lfc']>=0], size=sizes[data['lfc']>=0], alpha=alphas ,stemline_remove=args.no_stem,lines=[line_max],yaxis=(0,ymax))
-                if args.highlight:
-                    for hl in args.highlight : 
-                        protein_hl, feature=hl.split('-')
-                        if protein_hl == protein :
-                            highlight_region(bed_adjusted,ax_low,feature)
-                create_lollipop_plot(ax_high, data.loc[data['lfc']<0,'Position'], data.loc[data['lfc']<0,'lfc'], color=colors[data['lfc']<0], marker=markers[data['lfc']<0], size=sizes[data['lfc']<0],Custom_Xaxis=[ticks, labels], alpha=alphas, stemline_remove=args.no_stem, xlabel = 'Amino acid position', lines=[line_min],yaxis=(ymin,0))
-                if args.highlight:
-                    for hl in args.highlight : 
-                        protein_hl, feature=hl.split('-')
-                        if protein_hl == protein :
-                            highlight_region(bed_adjusted,ax_high,feature ,None,True)
-                leg=plot_genomic_regions(bed_adjusted,ax_scheme ,legend_loc='upper left', title='',legend_title='Features',Maximum=maximum)
-                add_legend(fig, consequence_mapping, pvalue_mapping,transparency=Biosig_labels ,add_legend=leg,fdr=args.fdr)
-            else :
-                create_lollipop_plot(ax_low, data['Position'], data['lfc'], color=colors, marker=markers, size=sizes,stemline_remove=args.no_stem, alpha=alphas,Custom_Xaxis=[ticks, labels] if args.scheme_loc == 'top' else None, lines = [line_max,line_min], xlabel = 'Amino acid position',yaxis=(ymin,ymax))
-                leg=plot_genomic_regions(bed_adjusted,ax_scheme, legend_loc='upper left', title='',legend_title='Features',Maximum=maximum,Custom_Xaxis=[ticks, labels] if args.scheme_loc == 'bottom' else None ,xlabel = 'Amino acid position')
-                add_legend(fig, consequence_mapping, pvalue_mapping,transparency=Biosig_labels,add_legend=leg,fdr=args.fdr)
-                if args.highlight:
-                    for hl in args.highlight : 
-                        protein_hl, feature=hl.split('-')
-                        if protein_hl == protein :
-                            highlight_region(bed_adjusted,ax_low,feature)
+            create_lollipop_plot(ax_low, data['Position'], data['lfc'], color=colors, marker=markers, size=sizes,stemline_remove=args.no_stem, alpha=alphas,Custom_Xaxis=[ticks, labels] if args.scheme_loc == 'top' else None, lines = [line_max,line_min], xlabel = 'Amino acid position',yaxis=(ymin,ymax))
+            leg=plot_genomic_regions(bed_adjusted,ax_scheme, legend_loc='upper left', title='',legend_title='Features',Maximum=maximum,Custom_Xaxis=[ticks, labels] if args.scheme_loc == 'bottom' else None ,xlabel = 'Amino acid position')
+            add_legend(fig, consequence_mapping, pvalue_mapping,transparency=Biosig_labels,add_legend=leg,fdr=args.fdr)
+            if args.highlight:
+                for hl in args.highlight : 
+                    protein_hl, feature=hl.split('-')
+                    if protein_hl == protein :
+                        highlight_region(bed_adjusted,ax_low,feature)
             if args.violin :
                 if args.violin_detail == 'high' :
                     grouped_violin_plot(ax_violin_input, (data['Consequence_Detail'],data['lfc']),negative=(data_negative_control['Consequence_Detail'],data_negative_control['lfc']),positive=(data_positive_control['Consequence_Detail'],data_positive_control['lfc']), ymin=ymin,ymax=ymax, hue= consequence_mapping_2)
