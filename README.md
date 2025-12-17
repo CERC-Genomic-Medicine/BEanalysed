@@ -104,9 +104,10 @@ And main annotation including:
 
 **Note:** Files must be valid Excel format. If you have a `.zip` file, extract it first before running the pipeline.
 
-### Domain BED File
+### Domain BED-like File
 
 Tab-delimited file with 4 columns (5 with optional color) :
+
 
 | Column | Description |
 |--------|-------------|
@@ -115,6 +116,9 @@ Tab-delimited file with 4 columns (5 with optional color) :
 | `start` | Start position |
 | `end` | End position |
 | `color` | Color (optional) |
+
+**Note:** this file may contain multiple proteins (all of which will be represented on separate figures).
+**Note:** The File must also contain a segment with the end of the protein (Domain name can be None), otherwise the protein's limit are infered from the maximum of the domains and the represented mutations.
 
 ### 3D Model
 
