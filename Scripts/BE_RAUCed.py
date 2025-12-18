@@ -92,7 +92,7 @@ def plot_roc_auc_from_excel_summary(dfs, plotted_value, seed=42, out='output.png
         plt.close(figB)
         ###### RAUC
         df=data_full
-        df['Truth']=None
+        df['Truth']=np.nan
         df.loc[[row['Controls']=='negative_control'  for ind, row in df.iterrows()],'Truth']=0
         print('negative Controls')
         print(df.loc[[row['Controls']=='negative_control' for ind, row in df.iterrows()],'Consequence_Detail'].value_counts())
@@ -113,18 +113,8 @@ def plot_roc_auc_from_excel_summary(dfs, plotted_value, seed=42, out='output.png
 
     for idx, (y_pred, y_true) in enumerate(datasets):
         y_pred, y_true = np.asarray(y_pred), np.asarray(y_true)
-        pos_idx = y_true == 1
-        neg_idx = y_true == 0
-
-        n_min = min(pos_idx.sum(), neg_idx.sum())
-        pos_sample = resample(y_pred[pos_idx], replace=True, n_samples=n_min)
-        neg_sample = resample(y_pred[neg_idx], replace=True, n_samples=n_min)
-        y_resampled = np.concatenate([np.ones(n_min), np.zeros(n_min)])
-        y_pred_resampled = np.concatenate([pos_sample, neg_sample])
-
-        fpr, tpr, _ = roc_curve(y_resampled, y_pred_resampled)
+        fpr, tpr, _ = roc_curve(y_true, y_pred)
         roc_auc = auc(fpr, tpr)
-
         plt.plot(fpr, tpr, lw=2, label=f'{labels[idx]} (AUC = {roc_auc:.3f})', color=palette[idx % len(palette)])
 
     plt.plot([0, 1], [0, 1], linestyle='--', color='grey')
