@@ -136,7 +136,7 @@ def plot_roc_auc_per_gene_from_excel_summary(dfs, plotted_value, genes, positive
 
 			fpr, tpr, _ = roc_curve(y_resampled, y_pred_resampled)
 			roc_auc = auc(fpr, tpr)
-		axs[ind].plot(fpr, tpr, lw=2, label=f'{labels[idx]} (AUC = {roc_auc:.3f})', color=palette[idx % len(palette)])
+			axs[ind].plot(fpr, tpr, lw=2, label=f'{labels[idx]} (AUC = {roc_auc:.3f})', color=palette[idx % len(palette)])
 		axs[ind].plot([0, 1], [0, 1], linestyle='--', color='grey')
 		axs[ind].set_xlabel('False Positive Rate')
 		axs[ind].set_ylabel('True Positive Rate')
