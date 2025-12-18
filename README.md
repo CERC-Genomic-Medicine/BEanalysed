@@ -157,8 +157,8 @@ python3 Consolidating_files.py -k FILE -I FILE [FILE ...] -a FILE [FILE ...] \
 | Argument | Description |
 |----------|-------------|
 | `-k`, `--key` | Tab/comma/space-delimited key file containing columns `ID_guide` and `Sequence` (protospacer sequence) |
-| `-I`, `--input` | One or more MaGeCK output files (per-gene results) |
-| `-a`, `--annotation_excel` | Excel file(s) containing predicted variant consequences |
+| `-I`, `--input` | One or more MaGeCK output files (per-gene results)  **space delimited**  |
+| `-a`, `--annotation_excel` | Excel file(s) containing predicted variant consequences  **space delimited**  |
 | `-s`, `--sheet` | Name of the sheet to use from the annotation Excel file (naming consideration see [Empty Sheet Detection](#empty-sheet-detection) and  |
 | `-X`, `--xvar` | Comma-separated experimental conditions that should be reflected in the MaGeCK filenames (e.g., `UNT/TREAT,KO/WT`) |
 
@@ -172,10 +172,10 @@ python3 Consolidating_files.py -k FILE -I FILE [FILE ...] -a FILE [FILE ...] \
 | `--Pick` | `False` | Use VEP's PICK flag (column `PICK`) to select canonical annotations |
 | `--Empty_controls` | `False` | Mark sgRNAs with no predicted mutation as negative controls (even in target genes) |
 | `-F` | `False` | Bypass some validation checks (force mode) |
-| `--Negative_Control_Genes` | — | List of protein/region names to designate as negative controls |
-| `--Positive_Control_Genes` | — | List of protein/region names to designate as positive controls |
-| `--Negative_Control_Consequences` | — | List of consequence types to designate as negative controls |
-| `--Positive_Control_Consequences` | — | List of consequence types to designate as positive controls |
+| `--Negative_Control_Genes` | — |  **space delimited**  List of protein/region names to designate as negative controls |
+| `--Positive_Control_Genes` | — |  **space delimited**  List of protein/region names to designate as positive controls |
+| `--Negative_Control_Consequences` | — |  **space delimited**  List of consequence types to designate as negative controls |
+| `--Positive_Control_Consequences` | — |  **space delimited**  List of consequence types to designate as positive controls |
 | `--out` | `summary` | Output filename (without extension) |
 
 #### Empty Sheet Detection
@@ -367,7 +367,7 @@ python RepeatOnRepeat.py -F FILE [FILE ...] [options]
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `-F`, `--files` | — | Input TSV files containing replicate data |
+| `-F`, `--files` | — | Input TSV files containing replicate data ( **space delimited** ) |
 | `--var` | `LFC` | Column name to analyze (e.g., `LFC`, `score`) |
 | `-o`, `--out` | `repeat_on_repeat.pdf` | Output image path |
 | `--pivot` | `False` | Pivot/transpose the grid layout |
@@ -437,11 +437,11 @@ The script generates:
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `-R`, `--Remove_sheet` | — | Sheet name(s) to exclude from analysis |
+| `-R`, `--Remove_sheet` | — | Sheet name(s) to exclude from analysis ( **space delimited** ) |
 | `-O`, `--out` | `RAUC.png` | Output image path |
-| `-G`, `--Genes` | `All Genes` | will analyse all genes (one per pannel) |
-|`--Negative_Control_Consequences`|`No predicted Mutation`|list of negative control consequences (accepted 'splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A')|
-|`--Positive_Control_Consequences`|`'splice' 'non-sense'`|list of negative control consequences (accepted 'splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A')|
+| `-G`, `--Genes` | `` (all genes) | **space delimited** list of Gene names34 |
+|`--Negative_Control_Consequences`|`No predicted Mutation`| **space delimited** list of negative control consequences (accepted 'splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A')|
+|`--Positive_Control_Consequences`|`'splice' 'non-sense'`| **space delimited** list of negative control consequences (accepted 'splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A')|
 
 
 ### 5. BEanalyzed_lollipop_plot.py
@@ -522,14 +522,14 @@ python scatter_plot_BEscreen.py -I FILE -X string [options]
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `-R`, `--Remove_sheet` | — | Sheet name(s) to exclude from analysis |
+| `-R`, `--Remove_sheet` | — | Sheet name(s) to exclude from analysis ( **space delimited** ) |
 | `-C`, `--color` | `None` | Color points by attribute: `None` (all black) or `Consequence` |
 | `-A`, `--alpha` | `None` | Transparency mode: `None` (opaque), `Significance`, or `all_little_bit` |
 | `-B`, `--biological_line` | — | Plot biological significance threshold lines (quantile, e.g., `0.05`) |
 | `-S`, `--Significance_threshold` | — | P-value threshold for significance-based transparency |
 | `-e`, `--elements_to_plot` | `all` | Filter elements: `all` or `coding_only` |
 | `-F`, `--Square_Format` | `False` | Force square 1:1 aspect ratio with matched axis ranges |
-| `-P`, `--protein` | — | Protein name(s) to filter and plot |
+| `-P`, `--protein` | — | Protein name(s) to filter and plot ( **space delimited** ) |
 | `-V`, `--Variable` | `lfc` | Column to plot (e.g., `lfc`, `p_value`) |
 | `-O`, `--Output` | — | Output filename (without extension) |
 
