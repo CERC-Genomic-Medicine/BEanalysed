@@ -387,14 +387,14 @@ The script generates a PDF file containing:
 
 ---
 
-### 3. BE_RAUCed.py
+### 3. BE_ROC.py
 
 Generates ROC-AUC curves for screen quality assessment.
 
 #### Usage
 
 ```bash
-python BE_RAUCed.py -I EXCEL_FILE -V {pos,neg} [options]
+python BE_ROC.py -I EXCEL_FILE -V {pos,neg} [options]
 ```
 
 #### Required Arguments
@@ -425,7 +425,7 @@ The script generates:
 ---
 
 
-### 4. BE_rauc_PerGene.py
+### 4. BE_ROC_PerGene.py
 #### Required Arguments
 
 | Argument | Description |
@@ -438,8 +438,8 @@ The script generates:
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `-R`, `--Remove_sheet` | — | Sheet name(s) to exclude from analysis ( **space delimited** ) |
-| `-O`, `--out` | `RAUC.png` | Output image path |
-| `-G`, `--Genes` | `` (all genes) | **space delimited** list of Gene names34 |
+| `-O`, `--out` | `RAUC_per_Gene` | Output images path ( **Do not include extension.** )  |
+| `-G`, `--Genes` | `` (all genes) | **space delimited** list of Gene names |
 |`--Negative_Control_Consequences`|`No predicted Mutation`| **space delimited** list of negative control consequences (accepted 'splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A')|
 |`--Positive_Control_Consequences`|`'splice' 'non-sense'`| **space delimited** list of negative control consequences (accepted 'splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A')|
 
