@@ -278,7 +278,7 @@ def main():
     parser.add_argument('--Negative_Control_Consequences', metavar='str', dest='Control_N_Consequences', required=False, nargs='+', default=['No predicted Mutation'], choices=['splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A'], type=str, help='list of negative control consequences')
     parser.add_argument('--Positive_Control_Consequences', metavar='str', dest='Control_P_Consequences', required=False, nargs='+', default=['splice','non-sense'], choices=['splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A'], type=str, help='list of positive control consequences')
     parser.add_argument('-V',"--value", required=False, dest='plotted_value', choices = {'pos', 'neg'}, default='neg', help="value to be plotted (ex Rank|Pos)")
-    parser.add_argument('-O',"--out", required=False, dest='out', default='RAUC_per_Gene', help="Output images path (default : RAUC_per_Gene) **Do not include extentions**")
+    parser.add_argument('-O',"--out", required=False, dest='out', default='ROC_per_Gene', help="Output images path (default : RAUC_per_Gene) **Do not include extensions**")
     args = parser.parse_args()
     all_sheets = pd.read_excel(args.excel_file, sheet_name=None)
     for k in args.to_remove:

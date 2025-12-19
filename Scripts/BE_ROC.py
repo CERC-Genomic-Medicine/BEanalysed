@@ -132,7 +132,7 @@ def main():
     parser.add_argument('-I',"--input", required=True, dest='excel_file', help="MageCK files per genes")
     parser.add_argument('-R',"--Remove_sheet", required=False, dest='to_remove',  default =[], nargs='+', help="Sheets to remove")
     parser.add_argument('-V',"--value", required=False, dest='plotted_value', choices = {'pos', 'neg'}, default='neg', help="value to be plotted (ex Rank|Pos)")
-    parser.add_argument('-O',"--out", required=False, dest='out', default='RAUC.png', help="Output image path (e.g., output.png)")
+    parser.add_argument('-O',"--out", required=False, dest='out', default='ROC', help="Output image path (** Do no include extensions **)")
     args = parser.parse_args()
     all_sheets = pd.read_excel(args.excel_file, sheet_name=None)
     for k in args.to_remove:
