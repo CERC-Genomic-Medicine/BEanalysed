@@ -152,6 +152,124 @@ def plot_roc_auc_per_gene_from_excel_summary(dfs, plotted_value, genes, positive
     fig.savefig(f'{out}.pdf',format="pdf")
 
 
+def plot_roc_auc_per_gene_per_consequence_from_excel_summary(dfs, plotted_value, genes, positive_consequences=[], negative_consequences=[], seed=42, out='output.png'):
+    """
+    Plot ROC AUC analysis with one panel per gene × label combination.
+    Each panel shows separate ROC curves for each positive consequence vs negative controls.
+    
+    Parameters:
+        dfs: dict of DataFrames (sheet_name -> DataFrame)
+        plotted_value: 'pos' or 'neg' for rank column
+        genes: list of genes to analyze
+        positive_consequences: list of positive consequence categories
+        negative_consequences: list of negative consequence categories
+        seed: random seed
+        out: output filename
+    """
+    
+    # Build data structure: gene -> label -> consequence -> DataFrame
+    gene_data_dict = {}
+    panel_keys = []  # List of (gene, label) tuples for panels
+    
+    for gene in genes:
+        gene_data_dict[gene] = {}
+        for label, data_full in dfs.items():
+            df = data_full.loc[data_full['proteins'] == gene, :].copy()
+            
+            # Get ranks for all rows
+            rank_col = "|".join([plotted_value, 'rank'])
+            if rank_col not in df.columns or df.empty:
+                continue
+                
+            # Identify negative controls (shared across all curves in this panel)
+            neg_mask = df['Consequence_Detail'].isin(negative_consequences)
+            neg_df = df.loc[neg_mask].copy()
+            
+            if neg_df.empty:
+                print(f'Skipping {gene}/{label} - no negative controls')
+                continue
+            
+            consequence_data = {}
+            for pos_consq in positive_consequences:
+                # Get positives for this specific consequence
+                pos_mask = df['Consequence_Detail'] == pos_consq
+                pos_df = df.loc[pos_mask].copy()
+                
+                if pos_df.empty:
+                    continue
+                
+                # Combine positive and negative
+                combined = pd.concat([pos_df, neg_df], ignore_index=True)
+                combined['Truth'] = combined['Consequence_Detail'].apply(
+                    lambda x: 1 if x == pos_consq else 0
+                )
+                
+                ranks = combined[rank_col]
+                inverted = ranks.max() + 1 - ranks
+                
+                consequence_data[pos_consq] = pd.DataFrame({
+                    'y_true': combined['Truth'].values,
+                    'y_pred': inverted.values
+                })
+                
+                print(f'{gene}, {label}, {pos_consq}: Pos={pos_mask.sum()}, Neg={neg_mask.sum()}')
+            
+            if consequence_data:
+                gene_data_dict[gene][label] = consequence_data
+                panel_keys.append((gene, label))
+    
+    if not panel_keys:
+        print("No valid data to plot")
+        return
+    
+    # Create grid for gene × label panels
+    n_panels = len(panel_keys)
+    grid = find_factorial_grid_approx_prime(n_panels)
+    fig, axs = plt.subplots(grid[0], grid[1], figsize=(grid[1]*6, grid[0]*6), dpi=300)
+    axs = np.atleast_1d(axs).flatten()
+    
+    palette = get_color_palette(len(positive_consequences))
+    
+    for idx, (gene, label) in enumerate(panel_keys):
+        ax = axs[idx]
+        consequence_data = gene_data_dict[gene][label]
+        
+        for consq_idx, pos_consq in enumerate(positive_consequences):
+            if pos_consq not in consequence_data:
+                continue
+                
+            data = consequence_data[pos_consq]
+            y_true = np.asarray(data['y_true']).astype(int)
+            y_pred = np.asarray(data['y_pred']).astype(float)
+            
+            # Skip if insufficient data
+            if len(y_true) == 0 or len(np.unique(y_true)) < 2:
+                print(f'Skipping {gene}/{label}/{pos_consq} - insufficient data')
+                continue
+            
+            fpr, tpr, _ = roc_curve(y_true, y_pred)
+            roc_auc = auc(fpr, tpr)
+            
+            ax.plot(fpr, tpr, lw=2, 
+                    label=f'{pos_consq} (AUC = {roc_auc:.3f})',
+                    color=palette[consq_idx % len(palette)])
+        
+        ax.plot([0, 1], [0, 1], linestyle='--', color='grey')
+        ax.set_xlabel('False Positive Rate')
+        ax.set_ylabel('True Positive Rate')
+        ax.set_title(f'{gene} - {label}')
+        ax.legend(loc='lower right', fontsize=8)
+        ax.set_aspect('equal')
+    
+    # Hide unused subplots
+    for idx in range(len(panel_keys), len(axs)):
+        axs[idx].set_visible(False)
+    
+    fig.suptitle('ROC AUC per Gene × Dataset (by Positive Consequence)', fontsize=16)
+    fig.tight_layout()
+    fig.savefig(f'{out}_per_consequences.pdf', format="pdf")
+    plt.close(fig)
+
 def main():
     parser = argparse.ArgumentParser(description="Plot repeat correlations with experimental labels.")
     parser.add_argument('-I',"--input", required=True, dest='excel_file', help="MageCK files per genes")
@@ -160,7 +278,7 @@ def main():
     parser.add_argument('--Negative_Control_Consequences', metavar='str', dest='Control_N_Consequences', required=False, nargs='+', default=['No predicted Mutation'], choices=['splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A'], type=str, help='list of negative control consequences')
     parser.add_argument('--Positive_Control_Consequences', metavar='str', dest='Control_P_Consequences', required=False, nargs='+', default=['splice','non-sense'], choices=['splice','non-sense','missense','synonymous','non-coding','regulatory', 'No predicted Mutation','N/A'], type=str, help='list of positive control consequences')
     parser.add_argument('-V',"--value", required=False, dest='plotted_value', choices = {'pos', 'neg'}, default='neg', help="value to be plotted (ex Rank|Pos)")
-    parser.add_argument('-O',"--out", required=False, dest='out', default='RAUC_per_Gene.png', help="Output image path (e.g., output.png)")
+    parser.add_argument('-O',"--out", required=False, dest='out', default='RAUC_per_Gene', help="Output images path (default : RAUC_per_Gene) **Do not include extentions**")
     args = parser.parse_args()
     all_sheets = pd.read_excel(args.excel_file, sheet_name=None)
     for k in args.to_remove:
@@ -180,6 +298,7 @@ def main():
     else : 
         list_genes = valid_genes
     plot_roc_auc_per_gene_from_excel_summary(all_sheets, args.plotted_value, list_genes, positive_consequences=args.Control_P_Consequences, negative_consequences=args.Control_N_Consequences, seed=42, out=args.out)
+    plot_roc_auc_per_gene_per_consequence_from_excel_summary(all_sheets, args.plotted_value, list_genes, positive_consequences=args.Control_P_Consequences, negative_consequences=args.Control_N_Consequences, seed=42, out=args.out)
 if __name__ == "__main__":
     main()
 
