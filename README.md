@@ -150,7 +150,10 @@ Consolidates MaGeCK results with VEP annotations into a single Excel summary.
 
 ```diff
 - Important!
-Current version requieres Isoform filtering of ALL annotations (including controls negative and positive). This may change in the future. Also, as the guides with no predicted mutation are not annotated (since they do not induce a mutation) they pass this filter no matter where they are. **Please verify for yourselves that controls are indeed treated as you wish them to be treated**. 
+Current version requieres Isoform filtering of ALL annotations (including controls negative and positive).
+ This may change in the future. Intergenic variants generally holds a non discript feature class '-' that may be used as Isoform.
+ Also, as the guides with no predicted mutation are not annotated (since they do not induce a mutation) they pass this filter no matter where they are.
+ **Please verify that your controls are indeed treated as you wish them to be treated**. (see Isoform selection section below] )
 ```
 
 #### Usage
@@ -167,7 +170,7 @@ python3 Consolidating_files.py -k FILE -I FILE [FILE ...] -a FILE [FILE ...] \
 | `-k`, `--key` | Tab/comma/space-delimited key file containing columns `ID_guide` and `Sequence` (protospacer sequence) |
 | `-I`, `--input` | One or more MaGeCK output files (per-gene results)  **space delimited**  |
 | `-a`, `--annotation_excel` | Excel file(s) containing predicted variant consequences  **space delimited**  |
-| `-s`, `--sheet` | Name of the sheet to use from the annotation Excel file (naming consideration see [Empty Sheet Detection](#empty-sheet-detection) and  |
+| `-s`, `--sheet` | Name of the sheet to use from the annotation Excel file (naming consideration see [Empty Sheet Detection](#empty-sheet-detection) )  |
 | `-X`, `--xvar` | Comma-separated experimental conditions that should be reflected in the MaGeCK filenames (e.g., `UNT/TREAT,KO/WT`) |
 
 #### Optional Arguments
@@ -213,6 +216,10 @@ The script will also output information considering replicate windows (i.e. whic
 **Auto-detection logic**
 1. column named 'Replicate'
 2. Column named after you editor, derived from sheet name with `"editor - YourEditorName"` (including spaces)
+
+#### Isoform selection
+
+Isoform selection is requiered either upstream by user or through the --Isoform or --Pick options. Isoform correspond to the Feature column in the VEP file (or CRISPR-BEasy annotation), Pick correspond to the column of the same name. This is requiered to categorise which consequence the mutation will hold in the consolidated file (and downstream analysis). In case of intergenic variant '-' may be used as an Isoform.
 
 #### Validation
 
