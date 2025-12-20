@@ -145,6 +145,14 @@ Tab-delimited file with 4 columns:
 
 Consolidates MaGeCK results with VEP annotations into a single Excel summary.
 
+
+## Caveat about current behaviour
+
+```diff
+- Important!
+Current version requieres Isoform filtering of ALL annotations (including controls negative and positive). This may change in the future. Also, as the guides with no predicted mutation are not annotated (since they do not induce a mutation) they pass this filter no matter where they are. **Please verify for yourselves that controls are indeed treated as you wish them to be treated**. 
+```
+
 #### Usage
 
 ```bash
