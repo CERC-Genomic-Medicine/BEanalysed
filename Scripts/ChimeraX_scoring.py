@@ -64,7 +64,18 @@ if __name__ == '__main__':
 		all_sheets.pop(k, None)
 	if not set(['Protein','Chain','Start','End']).issubset(lift_over.columns):
 		raise ValueError('Bed-like file does not contain the relevant columns')
+	
+
 	for label, data_full in all_sheets.items():
+		if args.Biological_threshold <1 and args.Biological_threshold>0 :
+			data_negative_control = data_full.loc[data_full['Controls']=='negative_control',:]
+			lower_biology=np.quantile(pd.to_numeric(data_negative_control['lfc']),float(args.Biological_threshold) )
+			upper_biology=np.quantile(pd.to_numeric(data_negative_control['lfc']),1-float(args.Biological_threshold) )
+			data_full['Bio_Sig'] = (data_full['lfc'] < lower_biology) | (data_full['lfc'] > upper_biology)
+		elif args.Biological_threshold ==1 :    
+			data_full['Bio_Sig']==True
+		else :
+			raise ValueError('Biological threshold must be between 0 and 1')
 		data_full=data_full.loc[data_full['Controls'].isnull(),:]
 		data_full=data_full.loc[[i=='missense' for i in data_full['Consequence']],:]
 		proteins=set(data_full['proteins'])
@@ -77,7 +88,7 @@ if __name__ == '__main__':
 			g.write("recipient: residues\n")
 			for protein in proteins :
 				liftover=lift_over.loc[lift_over['Protein']==protein ,:]
-				data = data_full.loc[data_full['proteins']==protein,:]
+				data = data_full.loc[data_full['proteins']==protein,:].copy()
 				for indexe, row in data.iterrows():
 					try:
 						_ = row['Mutations'].split(',')
@@ -85,13 +96,13 @@ if __name__ == '__main__':
 						print("Problematic value:", row['Mutations'], "of type", type(row['Mutations']), "row : ", row)
 				data['Mutations']=[i.split(',') for i in data['Mutations']]
 				data = data.explode('Mutations').dropna(subset=['Mutations'])
-				data.loc[:,'Position'] = [i.split('_')[1] for i in data['Mutations']]
+				data['Position'] = pd.Series([i.split('_')[1] for i in data['Mutations']], index=data.index, dtype='object')
 				data.loc[:,'Chain'] = data['Position'].apply(lambda x: adjust_value(x, liftover)[1])
 				data.loc[:,'Position'] = data['Position'].apply(lambda x: adjust_value(x, liftover)[0])
 				data = data[data['Position'].notnull()]
-				data['Sig']=[row['Bio_p-value']<=args.Biological_threshold and row['p_value']<=args.p_thresh for index, row in data.iterrows()]
-				data_NS = data.loc[~data['Sig'],:]
-				data = data.loc[data['Sig'],:]
+				data['Sig']=[row['Bio_Sig'] and row['p_value']<=args.p_thresh for index, row in data.iterrows()]
+				data_NS = data.loc[~data['Sig'],:].copy()
+				data = data.loc[data['Sig'],:].copy()
 				if args.duplicate_strategy == 'max':
 				  data = data.groupby(['Position','Chain'], as_index=False)['lfc'].max()
 				if args.duplicate_strategy == 'median':
@@ -101,12 +112,9 @@ if __name__ == '__main__':
 				for _, row in data.sort_values('Position').iterrows():
 					value = float(row['lfc'])
 					f.write(f"\t/{row['Chain']}:{int(row['Position'])}\t{value:.2f}\n")
-					val.append(value)
 				position_sig=set(["_".join([row.Chain, str(int(row.Position))]) for ind, row in data.iterrows()])
 				position_NS =["_".join([row.Chain, str(int(row.Position))]) for ind, row in data_NS.iterrows()]
 				position_NS = natsorted(list(set(position_NS) - position_sig))
 				NS=[i.split('_') for i in position_NS]
 				for listed in NS:
 					g.write(f"\t/{listed[0]}:{listed[1]}\t1\n")
-
-	print(f'max_value : {max(val)}, min_value {min(val)}')
