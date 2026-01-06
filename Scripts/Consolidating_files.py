@@ -489,7 +489,7 @@ class VEPAnnotationParser:
 		
 		return pd.DataFrame(results, columns=[
 			'ID', 'consequence', 'consequence_detail', 'impact',
-			'POS_AA', 'mutations_AA', 'replicate'
+			'POS_AA', 'mutations_AA','mutations_full', 'replicate'
 		])
 	
 	def _load_empty_guides(
@@ -603,13 +603,13 @@ class VEPAnnotationParser:
 			replicate_str = self._parse_replicates(replicate, id_mapping)
 			
 			# Parse amino acid position and mutations
-			pos_aa, mutations_aa = self._parse_amino_acid_changes(prot_pos, aa)
+			pos_aa, mutations_aa, mutation_full = self._parse_amino_acid_changes(prot_pos, aa)
 			
 			# Determine consequence category
 			consequence, consequence_detail = self._classify_consequence(cons,mutations_aa)
 			
 			yield (guide_id, consequence, consequence_detail, impact,
-				   pos_aa, mutations_aa, replicate_str)
+				   pos_aa, mutations_aa, mutation_full, replicate_str)
 	
 	def _parse_replicates(
 		self,
@@ -635,14 +635,14 @@ class VEPAnnotationParser:
 		if '?' in prot_pos or '/' not in amino_acids:
 			part = prot_pos.split('-')[0]
 			part = part if part != '?' else prot_pos.split('-')[-1]
-			return safe_int(part), ""
+			return safe_int(part), "", ""
 		
 		if '/' not in amino_acids:
-			return None, ""
+			return None, "", ""
 		
 		aa_parts = amino_acids.split('/')
 		if len(aa_parts) != 2:
-			return None, ""
+			return None, "", ""
 		
 		# Parse position range
 		if '-' in prot_pos:
@@ -661,17 +661,19 @@ class VEPAnnotationParser:
 		diff_idx = np.where(arr_a[:min_len] != arr_b[:min_len])[0].tolist()
 		
 		if not diff_idx:
-			return int(np.round((pos_initial + pos_final) / 2)), ""
+			return int(pos_initial + pos_final / 2 + 0.5), "", ""
 		
 		mutations = [
 			f"{aa_parts[0][i]}_{i + pos_initial}"
 			for i in diff_idx
 		]
+
+		mutations_full = f"{aa_parts[0][min(diff_idx):max(diff_idx)+1]}_{pos_initial}_{aa_parts[1][min(diff_idx):max(diff_idx)+1]}"
 		
 		start, end = min(diff_idx), max(diff_idx)
-		pos_aa = int(np.round(pos_initial + (start + end) / 2))
+		pos_aa = int(pos_initial + (start + end) / 2 + 0.5)
 		
-		return pos_aa, ",".join(mutations)
+		return pos_aa, ",".join(mutations), mutations_full
 	
 	def _classify_consequence(self, consequence_str: str, AA: str) -> tuple[Optional[str], str, str]:
 		"""Classify VEP consequence string into category."""
@@ -917,6 +919,10 @@ class BaseSummaryGenerator:
 			self.annotations['ID'],
 			self.annotations['mutations_AA']
 		))
+		self.mutations_full_map = dict(zip(
+			self.annotations['ID'],
+			self.annotations['mutations_full']
+		))
 		self.replicate_map = dict(zip(
 			self.annotations['ID'],
 			self.annotations['replicate']
@@ -960,6 +966,7 @@ class BaseSummaryGenerator:
 		data['Consequence_Detail'] = data['id'].map(self.consequence_detail_map)
 		data['Position'] = data['id'].map(self.position_map)
 		data['Mutations'] = data['id'].map(self.mutations_map)
+		data['Mutations_full'] = data['id'].map(self.mutations_full_map)
 		data['replicates_window'] = data['id'].map(self.replicate_map)
 		
 		# Assign controls
