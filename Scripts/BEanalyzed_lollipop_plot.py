@@ -572,9 +572,9 @@ if __name__ == '__main__':
                     ax_histofram = fig.add_subplot(gs[0,0], sharex=ax_low)
             else :
                 ax_low = fig.add_subplot(gs[(args.scheme_loc != 'bottom') + args.histogram])
-                ax_scheme = fig.add_subplot(gs[(args.scheme_loc == 'bottom') + args.histogram])
+                ax_scheme = fig.add_subplot(gs[(args.scheme_loc == 'bottom') + args.histogram],sharex=ax_low)
                 if args.histogram :
-                    ax_histofram = fig.add_subplot(gs[0])
+                    ax_histofram = fig.add_subplot(gs[0],sharex=ax_low)
             ### Histogram plot and figure grid config (according to histogram yes/no)
             if args.histogram :
                 ax_histofram.hist(data['Position'], bins=300, color=plt.cm.Paired(0), edgecolor='none')
