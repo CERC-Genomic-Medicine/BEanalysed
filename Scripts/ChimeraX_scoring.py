@@ -39,7 +39,7 @@ parser = argparse.ArgumentParser(description='This script produce a lolipop plot
 parser.add_argument('-i', '--input', metavar='FILE', dest='excel_file', required=True, type=str, help='Summary excel file')
 parser.add_argument('-b', '--lift_over', metavar='FILE', dest='lift_over', required=True, type=str, help='Chain bed-like file for liftove from 3D model to actual position')
 parser.add_argument('--Bio_threshold', dest='Biological_threshold', metavar='float',type=float, required=False, default=1, help='Biological threshold (two-sided)')
-parser.add_argument('--duplicate_strategy', metavar='str', dest='duplicate_strategy', required=False,default='median' , type=str, choices={"max",'mean','median'}, help='which lfc score is to be reported (default : median)')
+parser.add_argument('--duplicate_strategy', metavar='str', dest='duplicate_strategy', required=False,default='max' , type=str, choices={"max",'mean','median'}, help='which lfc score is to be reported (default : max)')
 parser.add_argument('-p', '--Prob_Threshold', metavar='float',type=float, dest='p_thresh', required=False, default=1, help='P-Value Threshold representation (default no threshold)')
 parser.add_argument('-R',"--Remove_sheet", required=False, dest='to_remove',  default =[], nargs='+', help="Sheets to remove")
 
@@ -73,7 +73,7 @@ if __name__ == '__main__':
 			upper_biology=np.quantile(pd.to_numeric(data_negative_control['lfc']),1-float(args.Biological_threshold) )
 			data_full['Bio_Sig'] = (data_full['lfc'] < lower_biology) | (data_full['lfc'] > upper_biology)
 		elif args.Biological_threshold ==1 :    
-			data_full['Bio_Sig']==True
+			data_full['Bio_Sig'] = True
 		else :
 			raise ValueError('Biological threshold must be between 0 and 1')
 		data_full=data_full.loc[data_full['Controls'].isnull(),:]
