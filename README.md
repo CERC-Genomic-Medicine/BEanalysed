@@ -183,8 +183,8 @@ python3 Consolidating_files.py -k FILE -I FILE [FILE ...] -a FILE [FILE ...] \
 | `--Pick` | `False` | Use VEP's PICK flag (column `PICK`) to select canonical annotations |
 | `--Empty_controls` | `False` | Mark sgRNAs with no predicted mutation as negative controls (even in target genes) |
 | `-F` | `False` | Bypass some validation checks (force mode) |
-| `--Negative_Control_Genes` | — |  **space delimited**  List of protein/region names to designate as negative controls |
-| `--Positive_Control_Genes` | — |  **space delimited**  List of protein/region names to designate as positive controls |
+| `--Negative_Control_Genes` | — |  **space delimited**  List of protein/region names to designate as negative controls (based on the 'Protein' column in the 'Library' sheet of the annotation file) |
+| `--Positive_Control_Genes` | — |  **space delimited**  List of protein/region names to designate as positive controls  (based on the 'Protein' column in the 'Library' sheet of the annotation file)  |
 | `--Negative_Control_Consequences` | — |  **space delimited**  List of consequence types to designate as negative controls |
 | `--Positive_Control_Consequences` | — |  **space delimited**  List of consequence types to designate as positive controls |
 | `--out` | `summary` | Output filename (without extension) |
