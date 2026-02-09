@@ -48,7 +48,7 @@ VARIANT_CONSEQUENCES_MAPPING = {
 	'3_prime_UTR_variant': 'non-coding',
 	'synonymous_variant': 'synonymous',
 	'non_coding_transcript_exon_variant': 'non-coding',
-	'splice_region_variant': 'non-coding',
+	'splice_region_variant': 'non0coding',
 	'splice_polypyrimidine_tract_variant': 'non-coding',
 	'stop_gained': 'non-sense',
 	'coding_sequence_variant': 'coding',
@@ -771,10 +771,13 @@ class ControlAssigner:
 		# Use universal matcher if one criterion not specified
 		gene_matcher = genes if genes else self._universal_matcher
 		cons_matcher = consequences if consequences else self._universal_matcher
+		print(set(df['Consequence_Detail']))
+		print(set(df['proteins']))
+		print(set(df.columns))
 		# Find matching guides
 		mask = df.apply(
 			lambda row: (
-				row['Consequence'] in cons_matcher and
+				row['Consequence_Detail'] in cons_matcher and
 				row['proteins'] in gene_matcher
 			),
 			axis=1
@@ -794,7 +797,7 @@ class ControlAssigner:
 		if genes and consequences:
 			exclude_mask = df.apply(
 				lambda row: (
-					not (row['Consequence'] in cons_matcher) and
+					not (row['Consequence_Detail'] in cons_matcher) and
 					row['proteins'] in gene_matcher
 				),
 				axis=1
