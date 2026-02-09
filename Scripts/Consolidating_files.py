@@ -41,24 +41,24 @@ VALID_CONSEQUENCE_CATEGORIES = frozenset([
 
 VARIANT_CONSEQUENCES_MAPPING = {
 	'missense_variant': 'missense',
-	'intron_variant': 'non_coding',
-	'downstream_gene_variant': 'non_coding',
+	'intron_variant': 'non-coding',
+	'downstream_gene_variant': 'non-coding',
 	'NMD_transcript_variant': 'non-sense',
-	'upstream_gene_variant': 'non_coding',
-	'3_prime_UTR_variant': 'non_coding',
+	'upstream_gene_variant': 'non-coding',
+	'3_prime_UTR_variant': 'non-coding',
 	'synonymous_variant': 'synonymous',
-	'non_coding_transcript_exon_variant': 'non_coding',
-	'splice_region_variant': 'non_coding',
-	'splice_polypyrimidine_tract_variant': 'non_coding',
+	'non_coding_transcript_exon_variant': 'non-coding',
+	'splice_region_variant': 'non-coding',
+	'splice_polypyrimidine_tract_variant': 'non-coding',
 	'stop_gained': 'non-sense',
 	'coding_sequence_variant': 'coding',
-	'5_prime_UTR_variant': 'non_coding',
+	'5_prime_UTR_variant': 'non-coding',
 	'regulatory_region_variant': 'regulatory',
 	'splice_donor_variant': 'splice',
 	'splice_acceptor_variant': 'splice',
-	'non_coding_transcript_variant': 'non_coding',
-	'splice_donor_region_variant': 'non_coding',
-	'splice_donor_5th_base_variant': 'non_coding',
+	'non_coding_transcript_variant': 'non-coding',
+	'splice_donor_region_variant': 'non-coding',
+	'splice_donor_5th_base_variant': 'non-coding',
 	'TF_binding_site_variant': 'regulatory',
 	'start_lost': 'non-sense',
 	'stop_lost' : 'non-sense' ,
@@ -70,7 +70,7 @@ VARIANT_CONSEQUENCES_MAPPING = {
 }
 
 # Consequence priority for classification (higher index = higher priority)
-CONSEQUENCE_PRIORITY = ['non_coding', 'regulatory', 'synonymous', 'missense', 'non-sense', 'splice']
+CONSEQUENCE_PRIORITY = ['non-coding', 'regulatory', 'synonymous', 'missense', 'non-sense', 'splice']
 
 
 
@@ -697,7 +697,7 @@ class VEPAnnotationParser:
 			return 'synonymous', 'synonymous'
 		elif 'regulatory' in mapped:
 			return None, 'regulatory'
-		elif 'non_coding' in mapped:
+		elif 'non-coding' in mapped:
 			return None, 'non-coding'
 		elif 'No predicted Mutation' in mapped:
 			return 'No predicted Mutation', 'No predicted Mutation'
