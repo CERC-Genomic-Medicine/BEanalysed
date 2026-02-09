@@ -622,8 +622,10 @@ When multiple guides target the same residue position, the `--duplicate_strategy
 
 #### ChimeraX Visualization
 
+chimeraX.sh script is provided as a default but can be loaded into chimera multiple other ways to represent other elements simultaneously. 
+
 ```bash
-bash chimeraX.sh <your_3D_model> <your_attribute_file>
+for x in *_Sig.defattr ; do bash chimeraX.sh [Your_Model.cif] $x  [Dupp_Strategy];done
 ```
 
 ---
