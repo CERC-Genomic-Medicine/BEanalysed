@@ -474,7 +474,7 @@ This script creates publication-ready lollipop plots that visualize guide-level 
 #### Usage
 
 ```bash
-python BEscreen_lollipop_plot_simplified.py -b BED_FILE -i EXCEL_FILE \
+python BEscreen_lollipop_plot.py -b BED_FILE -i EXCEL_FILE \
     --Bio_threshold BIOLOGICAL_THRESHOLD [options]
 ```
 
