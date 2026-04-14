@@ -180,7 +180,7 @@ python3 Consolidating_files.py -k FILE -I FILE [FILE ...] -a FILE [FILE ...] \
 | `-e`, `--empty_sheet` | Auto-detect | Sheet name for guides without predicted mutation (see [Empty Sheet Detection](#empty-sheet-detection)) |
 | `-l`, `--lib_sheet` | `Library` | Name of the library sheet in the annotation Excel file |
 | `--Isoform` | — | Specific transcript isoform(s) to select for annotation including Positive and Negative controls (if used) |
-| `--Pick` | `False` | Use VEP's PICK flag (column `PICK`) to select canonical annotations |
+| `--Pick` | `False` | Use VEP's PICK flag (column `PICK`) to select PICK (ensembl derived) isofrom derived annotations |
 | `--Empty_controls` | `False` | Mark sgRNAs with no predicted mutation as negative controls (even in target genes) |
 | `-F` | `False` | Bypass some validation checks (force mode) |
 | `--Negative_Control_Genes` | — |  **space delimited**  List of protein/region names to designate as negative controls (based on the 'Protein' column in the 'Library' sheet of the annotation file) |
