@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>BE Lollipop Plot</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+</head>
+<body>
+
+<h1>BE Lollipop</h1>
+<div class="subtitle">
+  In-browser port of <code>BEanalyzed_lollipop_plot.py</code>. Upload a
+  consolidated <code>.xlsx</code> and a BED-like feature table
+  (tab-separated, columns: <code>start end name proteins [color]</code>).
+  Plots regenerate on every change.
+</div>
+
+<div class="panel">
+  <div class="controls-grid">
+    <div>
+      <label for="xlsxInput">Excel file (.xlsx)</label>
+      <input type="file" id="xlsxInput" accept=".xlsx,.xls" />
+    </div>
+    <div>
+      <label for="bedInput">BED-like file (tsv/csv, optional)</label>
+      <input type="file" id="bedInput" accept=".tsv,.bed,.txt,.csv" />
+    </div>
+    <div>
+      <label for="sheetSel">Sheet</label>
+      <select id="sheetSel"></select>
+    </div>
+    <div>
+      <label for="proteinSel">Protein</label>
+      <select id="proteinSel"></select>
+    </div>
+    <div>
+      <label for="statMethod">Biological-threshold method</label>
+      <select id="statMethod">
+        <option value="quantile" selected>quantile (of negative controls)</option>
+        <option value="none">none</option>
+      </select>
+    </div>
+    <div>
+      <label for="bioThresh">Biological threshold (two-sided quantile)</label>
+      <input type="number" id="bioThresh" step="0.01" min="0" max="0.5" value="0.05" />
+    </div>
+    <div>
+      <label for="pThresh">p-value / FDR threshold (sizes the markers)</label>
+      <input type="number" id="pThresh" step="0.01" min="0" max="1" value="0.05" />
+    </div>
+    <div>
+      <label for="fdrToggle">Use FDR instead of p-value</label>
+      <select id="fdrToggle">
+        <option value="no" selected>No — use p_value</option>
+        <option value="yes">Yes — use fdr</option>
+      </select>
+    </div>
+    <div>
+      <label for="noStem">Show stem lines</label>
+      <select id="noStem">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  </div>
+  <div id="status" class="status info hidden"></div>
+</div>
+
+<div id="plotPanel" class="panel hidden">
+  <div id="combinedPlot" class="plot plot-fill"></div>
+</div>
+
+<script src="common.js"></script>
+<script>
+BE.installNav('BE_lollipop.html');
+BE.installAutoResize();
+
+const CONSQ_MARKER = {
+  synonymous: 'diamond', missense: 'circle',
+  'non-sense': 'square', splice: 'triangle-up',
+};
+const CONSQ_COLOR = {
+  synonymous: 'green', missense: 'purple',
+  'non-sense': 'red', splice: 'gold',
+};
+const ALLOWED_CONSQ = new Set(Object.keys(CONSQ_MARKER));
+
+const state = { sheets: {}, bed: [] };
+
+const els = {
+  xlsx: document.getElementById('xlsxInput'),
+  bed:  document.getElementById('bedInput'),
+  sheet:document.getElementById('sheetSel'),
+  prot: document.getElementById('proteinSel'),
+  stat: document.getElementById('statMethod'),
+  bio:  document.getElementById('bioThresh'),
+  p:    document.getElementById('pThresh'),
+  fdr:  document.getElementById('fdrToggle'),
+  stem: document.getElementById('noStem'),
+};
+const status = BE.Status(document.getElementById('status'));
+const panel = document.getElementById('plotPanel');
+const scheduleRender = BE.debounce(render, 100);
+for (const k of ['sheet','prot','stat','bio','p','fdr','stem']) {
+  els[k].addEventListener('change', scheduleRender);
+  els[k].addEventListener('input', scheduleRender);
+}
+
+els.xlsx.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  status.info(`Reading ${file.name}...`);
+  try {
+    const { sheets } = await BE.readWorkbook(file);
+    state.sheets = sheets;
+    const names = Object.keys(sheets);
+    els.sheet.innerHTML = names.map(n => `<option>${n}</option>`).join('');
+    refreshProteins();
+    status.info(`Loaded ${names.length} sheet(s).`);
+    scheduleRender();
+  } catch (err) {
+    console.error(err);
+    status.error(`Failed to read xlsx: ${err.message}`);
+  }
+});
+
+els.bed.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const rows = await BE.readTable(file);
+    if (rows.length === 0) throw new Error('Empty file');
+    const req = ['start','end','name','proteins'];
+    for (const c of req) if (!(c in rows[0]))
+      throw new Error(`Missing column "${c}"`);
+    state.bed = rows;
+    refreshProteins();
+    scheduleRender();
+    status.info(`Loaded ${rows.length} BED row(s).`);
+  } catch (err) {
+    console.error(err);
+    status.error(`Failed to read BED: ${err.message}`);
+  }
+});
+
+function refreshProteins() {
+  const prots = new Set();
+  for (const rows of Object.values(state.sheets))
+    for (const r of rows) if (r.proteins) prots.add(r.proteins);
+  if (state.bed.length)
+    for (const r of state.bed) if (r.proteins) prots.add(r.proteins);
+  const list = [...prots].sort();
+  els.prot.innerHTML = list.map(p => `<option>${p}</option>`).join('');
+}
+
+function render() {
+  if (!Object.keys(state.sheets).length) return;
+  status.clear();
+
+  const sheet = els.sheet.value;
+  const protein = els.prot.value;
+  const rows = state.sheets[sheet] || [];
+  const prows = rows.filter(r => r.proteins === protein);
+  const data = prows
+    .filter(r => ALLOWED_CONSQ.has(r.Consequence) && r.Position != null && r.lfc != null)
+    .map(r => ({
+      pos: Number(r.Position),
+      lfc: Number(r.lfc),
+      consq: r.Consequence,
+      p: Number(els.fdr.value === 'yes' ? r.fdr : r.p_value),
+      mutations: r.Mutations_full != null ? r.Mutations_full : (r.Mutations ?? ''),
+    }))
+    .filter(r => !Number.isNaN(r.pos) && !Number.isNaN(r.lfc));
+
+  if (!data.length) {
+    panel.classList.add('hidden');
+    status.warn(`No plottable rows for ${protein} in ${sheet}.`);
+    return;
+  }
+
+  // biological thresholds
+  let bioLo = null, bioHi = null;
+  if (els.stat.value === 'quantile') {
+    const negs = rows.filter(r => r.Controls === 'negative_control')
+                     .map(r => Number(r.lfc)).filter(v => !Number.isNaN(v));
+    if (negs.length) {
+      const t = parseFloat(els.bio.value);
+      bioLo = BE.quantile(negs, t);
+      bioHi = BE.quantile(negs, 1 - t);
+    }
+  }
+  const bioSig = (v) =>
+    bioLo != null && (v <= bioLo || v >= bioHi);
+
+  const pThresh = parseFloat(els.p.value);
+
+  // Compute x-extent from data and bed combined so both panels align.
+  const positions = data.map(d => d.pos);
+  const bedRows = state.bed.filter(b => b.proteins === protein);
+  let xMin = Math.min(...positions);
+  let xMax = Math.max(...positions);
+  for (const f of bedRows) {
+    const s = Number(f.start), e = Number(f.end);
+    if (!Number.isNaN(s)) xMin = Math.min(xMin, s);
+    if (!Number.isNaN(e)) xMax = Math.max(xMax, e);
+  }
+  const xPad = Math.max(1, (xMax - xMin) * 0.01);
+
+  // --- Lollipop traces (yref 'y') ---
+  const traces = [];
+  const byCat = {};
+  for (const d of data) (byCat[d.consq] = byCat[d.consq] || []).push(d);
+  const pLabel = els.fdr.value === 'yes' ? 'FDR' : 'p-value';
+  for (const cat of Object.keys(byCat)) {
+    const pts = byCat[cat];
+    traces.push({
+      x: pts.map(p => p.pos),
+      y: pts.map(p => p.lfc),
+      mode: 'markers', type: 'scatter', name: cat,
+      legendgroup: 'consequence',
+      legendgrouptitle: { text: 'Consequence' },
+      xaxis: 'x', yaxis: 'y',
+      customdata: pts.map(p => [
+        p.mutations == null || p.mutations === '' ? '—' : String(p.mutations),
+        Number.isNaN(p.p) ? '—' : p.p,
+      ]),
+      hovertemplate:
+        `${cat}<br>` +
+        `position: %{x}<br>` +
+        `lfc: %{y:.3f}<br>` +
+        `${pLabel}: %{customdata[1]}<br>` +
+        `mutations: %{customdata[0]}<extra></extra>`,
+      marker: {
+        color: CONSQ_COLOR[cat],
+        symbol: CONSQ_MARKER[cat],
+        size: pts.map(p => (p.p <= pThresh ? 14 : 9)),
+        opacity: pts.map(p => (bioLo == null || bioSig(p.lfc) ? 1 : 0.4)),
+        line: { color: CONSQ_COLOR[cat], width: 1 },
+      },
+    });
+  }
+  // Legend-only swatches for marker-size → p-value threshold.
+  const pThreshLabel = pThresh.toString();
+  traces.push({
+    x: [null], y: [null], mode: 'markers', type: 'scatter',
+    name: `${pLabel} ≤ ${pThreshLabel}`,
+    legendgroup: 'pvalue',
+    legendgrouptitle: { text: pLabel },
+    marker: { symbol: 'circle', size: 14, color: 'gray' },
+    hoverinfo: 'skip', showlegend: true,
+  });
+  traces.push({
+    x: [null], y: [null], mode: 'markers', type: 'scatter',
+    name: `${pLabel} > ${pThreshLabel}`,
+    legendgroup: 'pvalue',
+    legendgrouptitle: { text: pLabel },
+    marker: { symbol: 'circle', size: 9, color: 'gray' },
+    hoverinfo: 'skip', showlegend: true,
+  });
+
+  // Feature-track baseline line drawn only in gaps between domain blocks.
+  const blockRanges = bedRows
+    .map(f => [Number(f.start), Number(f.end)])
+    .filter(([s, e]) => !Number.isNaN(s) && !Number.isNaN(e))
+    .sort((a, b) => a[0] - b[0]);
+  // Merge overlapping blocks so gaps are clean.
+  const merged = [];
+  for (const [s, e] of blockRanges) {
+    if (merged.length && s <= merged[merged.length - 1][1]) {
+      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], e);
+    } else merged.push([s, e]);
+  }
+  const gapsX = [], gapsY = [];
+  let cursor = xMin;
+  for (const [s, e] of merged) {
+    if (s > cursor) { gapsX.push(cursor, s, null); gapsY.push(0.5, 0.5, null); }
+    cursor = Math.max(cursor, e);
+  }
+  if (cursor < xMax) { gapsX.push(cursor, xMax, null); gapsY.push(0.5, 0.5, null); }
+  traces.push({
+    x: gapsX, y: gapsY,
+    mode: 'lines', type: 'scatter',
+    xaxis: 'x', yaxis: 'y2',
+    line: { color: 'grey', width: 2 },
+    connectgaps: false,
+    hoverinfo: 'skip', showlegend: false,
+  });
+
+  // --- Shapes: stems + biological thresholds on y, feature rects on y2 ---
+  const shapes = [];
+  if (els.stem.value === 'yes') {
+    for (const d of data) {
+      shapes.push({
+        type: 'line', xref: 'x', yref: 'y',
+        x0: d.pos, x1: d.pos, y0: 0, y1: d.lfc,
+        line: { color: 'gray', width: 1 }, opacity: 0.2,
+      });
+    }
+  }
+  if (bioLo != null) {
+    shapes.push({ type: 'line', xref: 'paper', yref: 'y',
+                  x0: 0, x1: 1, y0: bioLo, y1: bioLo,
+                  line: { color: 'red', dash: 'dash', width: 1 } });
+    shapes.push({ type: 'line', xref: 'paper', yref: 'y',
+                  x0: 0, x1: 1, y0: bioHi, y1: bioHi,
+                  line: { color: 'red', dash: 'dash', width: 1 } });
+  }
+
+  const annotations = [];
+  const palette = BE.getColorPalette(bedRows.length);
+  bedRows.forEach((f, i) => {
+    const s = Number(f.start), e = Number(f.end);
+    if (Number.isNaN(s) || Number.isNaN(e)) return;
+    const color = (f.color && /^#|[a-z]+$/i.test(String(f.color)))
+      ? String(f.color) : palette[i % palette.length];
+    shapes.push({
+      type: 'rect', xref: 'x', yref: 'y2',
+      x0: s, x1: e, y0: 0, y1: 1,
+      fillcolor: color, opacity: 0.45, line: { width: 0 },
+    });
+    if (f.name && !/intron/i.test(String(f.name))) {
+      annotations.push({
+        xref: 'x', yref: 'y2',
+        x: (s + e) / 2, y: 0.5, text: String(f.name),
+        showarrow: false, font: { size: 12 },
+      });
+    }
+  });
+
+  Plotly.newPlot('combinedPlot', traces, {
+    title: `${sheet} — ${protein}`,
+    xaxis: {
+      title: 'Amino acid position',
+      range: [xMin - xPad, xMax + xPad],
+      anchor: 'y',
+      showgrid: false,
+      zeroline: false,
+    },
+    yaxis: {
+      title: 'Log Fold Change',
+      domain: [0, 0.82],
+      anchor: 'x',
+      showgrid: false,
+      zeroline: false,
+    },
+    yaxis2: {
+      visible: false,
+      showgrid: false,
+      zeroline: false,
+      showline: false,
+      range: [0, 1],
+      domain: [0.88, 1.0],
+      anchor: 'x',
+      fixedrange: true,
+    },
+    shapes,
+    annotations,
+    margin: { t: 50, r: 180, b: 55, l: 65 },
+    legend: {
+      orientation: 'v',
+      x: 1.02, y: 1, xanchor: 'left', yanchor: 'top',
+      groupclick: 'toggleitem',
+      tracegroupgap: 12,
+    },
+  }, { responsive: true });
+
+  panel.classList.remove('hidden');
+  status.info(`Plotted ${data.length} mutation(s) for ${protein} in ${sheet}.`);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>BE ROC per Gene</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+</head>
+<body>
+
+<h1>BE ROC — per Gene</h1>
+<div class="subtitle">
+  In-browser port of <code>BE_ROC_PerGene.py</code>. ROC curves are
+  computed for each selected gene, using user-picked consequence
+  categories for the positive and negative classes.
+</div>
+
+<div class="panel">
+  <div class="controls-grid">
+    <div>
+      <label for="fileInput">Excel file (.xlsx)</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" />
+    </div>
+    <div>
+      <label for="valueSelect">Plotted value (rank column)</label>
+      <select id="valueSelect">
+        <option value="neg" selected>neg  (neg|rank)</option>
+        <option value="pos">pos  (pos|rank)</option>
+      </select>
+    </div>
+    <div>
+      <label>Sheets</label>
+      <div id="sheetList" class="checklist">
+        <em style="color: var(--muted); font-size: 13px;">No file loaded.</em>
+      </div>
+    </div>
+    <div>
+      <label>Genes (from <code>proteins</code> column)</label>
+      <div id="geneList" class="checklist">
+        <em style="color: var(--muted); font-size: 13px;">No file loaded.</em>
+      </div>
+    </div>
+    <div>
+      <label>Positive consequence categories</label>
+      <div id="posConsq" class="checklist"></div>
+    </div>
+    <div>
+      <label>Negative consequence categories</label>
+      <div id="negConsq" class="checklist"></div>
+    </div>
+  </div>
+  <div id="status" class="status info hidden"></div>
+</div>
+
+<div id="perGenePanel" class="panel hidden">
+  <h3>ROC per gene (all datasets)</h3>
+  <div id="perGeneGrid" class="plots-row"></div>
+</div>
+
+<div id="perConsqPanel" class="panel hidden">
+  <h3>ROC per gene × dataset (split by positive consequence)</h3>
+  <div id="perConsqGrid" class="plots-row"></div>
+</div>
+
+<script src="common.js"></script>
+<script>
+BE.installNav('BE_ROC_PerGene.html');
+BE.installAutoResize();
+
+const CONSQ_ALL = ['splice','non-sense','missense','synonymous','non-coding',
+                   'regulatory','No predicted Mutation','N/A'];
+
+const state = { sheets: {}, genes: [] };
+const fileInput = document.getElementById('fileInput');
+const sheetList = document.getElementById('sheetList');
+const geneList  = document.getElementById('geneList');
+const posEl     = document.getElementById('posConsq');
+const negEl     = document.getElementById('negConsq');
+const valueSel  = document.getElementById('valueSelect');
+const status    = BE.Status(document.getElementById('status'));
+const perGene   = document.getElementById('perGenePanel');
+const perConsq  = document.getElementById('perConsqPanel');
+const perGeneGrid = document.getElementById('perGeneGrid');
+const perConsqGrid = document.getElementById('perConsqGrid');
+
+const scheduleRender = BE.debounce(render, 120);
+
+BE.renderChecklist(posEl, CONSQ_ALL, scheduleRender, ['splice','non-sense']);
+BE.renderChecklist(negEl, CONSQ_ALL, scheduleRender, ['No predicted Mutation']);
+
+fileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  status.info(`Reading ${file.name}...`);
+  try {
+    const { sheets } = await BE.readWorkbook(file);
+    state.sheets = sheets;
+    BE.renderChecklist(sheetList, Object.keys(sheets), scheduleRender);
+    const allGenes = new Set();
+    for (const rows of Object.values(sheets))
+      for (const r of rows) if (r.proteins) allGenes.add(r.proteins);
+    state.genes = [...allGenes].sort();
+    BE.renderChecklist(geneList, state.genes, scheduleRender);
+    status.info(`Loaded ${Object.keys(sheets).length} sheet(s) and ${state.genes.length} gene(s).`);
+    scheduleRender();
+  } catch (err) {
+    console.error(err);
+    status.error(`Failed to read file: ${err.message}`);
+  }
+});
+valueSel.addEventListener('change', scheduleRender);
+
+function render() {
+  if (!state.genes.length) return;
+  status.clear();
+  const plottedValue = valueSel.value;
+  const rankCol = `${plottedValue}|rank`;
+  const sheets  = BE.getChecked(sheetList);
+  const genes   = BE.getChecked(geneList);
+  const pos     = new Set(BE.getChecked(posEl));
+  const neg     = new Set(BE.getChecked(negEl));
+
+  if (!sheets.length || !genes.length || !pos.size || !neg.size) {
+    perGene.classList.add('hidden'); perConsq.classList.add('hidden');
+    status.warn('Pick at least one sheet, gene, positive and negative consequence.');
+    return;
+  }
+
+  const palette = BE.getColorPalette(sheets.length);
+  const consqPalette = BE.getColorPalette([...pos].length);
+
+  // ---- Per gene, all datasets ----
+  perGeneGrid.innerHTML = '';
+  for (const gene of genes) {
+    const traces = [];
+    sheets.forEach((label, i) => {
+      const rows = state.sheets[label].filter(r => r.proteins === gene);
+      const labeled = rows.filter(r =>
+        (pos.has(r.Consequence_Detail) || neg.has(r.Consequence_Detail))
+      );
+      const ranks = labeled.map(r => Number(r[rankCol])).filter(v => !Number.isNaN(v));
+      if (!ranks.length) return;
+      const maxRank = Math.max(...ranks);
+      const yPred = [], yTrue = [];
+      for (const r of labeled) {
+        const rv = Number(r[rankCol]); if (Number.isNaN(rv)) continue;
+        yPred.push(maxRank + 1 - rv);
+        yTrue.push(pos.has(r.Consequence_Detail) ? 1 : 0);
+      }
+      const uniqTruth = new Set(yTrue);
+      if (uniqTruth.size < 2) return;
+      const { fpr, tpr, auc } = BE.rocCurve(yPred, yTrue);
+      traces.push({
+        x: fpr, y: tpr, mode: 'lines', type: 'scatter',
+        name: `${label} (AUC = ${auc.toFixed(3)})`,
+        line: { width: 2.2, color: palette[i % palette.length] },
+      });
+    });
+    if (!traces.length) continue;
+    traces.push({
+      x: [0, 1], y: [0, 1], mode: 'lines', type: 'scatter',
+      line: { dash: 'dash', color: 'grey', width: 1 }, showlegend: false,
+    });
+    const div = document.createElement('div');
+    div.className = 'plot plot-grid-item';
+    perGeneGrid.appendChild(div);
+    Plotly.newPlot(div, traces, {
+      title: gene,
+      xaxis: { title: 'FPR', range: [0, 1] },
+      yaxis: { title: 'TPR', range: [0, 1], scaleanchor: 'x', scaleratio: 1 },
+      legend: { x: 0.45, y: 0.05, font: { size: 10 } },
+      margin: { t: 40, r: 20, b: 50, l: 55 },
+    }, { responsive: true });
+  }
+  perGene.classList.remove('hidden');
+
+  // ---- Per gene × dataset, split by positive consequence ----
+  perConsqGrid.innerHTML = '';
+  const posList = [...pos];
+  for (const gene of genes) {
+    for (const label of sheets) {
+      const rows = state.sheets[label].filter(r => r.proteins === gene);
+      const negRows = rows.filter(r => neg.has(r.Consequence_Detail));
+      if (!negRows.length) continue;
+      const traces = [];
+      posList.forEach((posConsq, i) => {
+        const posRows = rows.filter(r => r.Consequence_Detail === posConsq);
+        if (!posRows.length) return;
+        const combined = [...posRows, ...negRows];
+        const ranks = combined.map(r => Number(r[rankCol])).filter(v => !Number.isNaN(v));
+        if (!ranks.length) return;
+        const maxRank = Math.max(...ranks);
+        const yPred = [], yTrue = [];
+        for (const r of combined) {
+          const rv = Number(r[rankCol]); if (Number.isNaN(rv)) continue;
+          yPred.push(maxRank + 1 - rv);
+          yTrue.push(r.Consequence_Detail === posConsq ? 1 : 0);
+        }
+        if (new Set(yTrue).size < 2) return;
+        const { fpr, tpr, auc } = BE.rocCurve(yPred, yTrue);
+        traces.push({
+          x: fpr, y: tpr, mode: 'lines', type: 'scatter',
+          name: `${posConsq} (AUC = ${auc.toFixed(3)})`,
+          line: { width: 2.2, color: consqPalette[i % consqPalette.length] },
+        });
+      });
+      if (!traces.length) continue;
+      traces.push({
+        x: [0, 1], y: [0, 1], mode: 'lines', type: 'scatter',
+        line: { dash: 'dash', color: 'grey', width: 1 }, showlegend: false,
+      });
+      const div = document.createElement('div');
+      div.className = 'plot'; div.style.height = '440px';
+      perConsqGrid.appendChild(div);
+      Plotly.newPlot(div, traces, {
+        title: `${gene} — ${label}`,
+        xaxis: { title: 'FPR', range: [0, 1] },
+        yaxis: { title: 'TPR', range: [0, 1], scaleanchor: 'x', scaleratio: 1 },
+        legend: { x: 0.45, y: 0.05, font: { size: 10 } },
+        margin: { t: 40, r: 20, b: 50, l: 55 },
+      }, { responsive: true });
+    }
+  }
+  perConsq.classList.remove('hidden');
+  status.info(`Rendered ROC for ${genes.length} gene(s) × ${sheets.length} dataset(s).`);
+}
+</script>
+</body>
+</html>

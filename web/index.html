@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>BEanalysed — Web Ports</title>
+<link rel="stylesheet" href="common.css" />
+<style>
+  .tool-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .tool-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .tool-card h3 { margin: 0 0 4px; }
+  .tool-card p  { margin: 6px 0; color: var(--muted); font-size: 14px; }
+  .tool-card a  { font-weight: 700; color: var(--accent); text-decoration: none; }
+  .tool-card a:hover { text-decoration: underline; }
+  .tool-card code { background: #eef1f6; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<h1>BEanalysed — In-Browser Ports</h1>
+<div class="subtitle">
+  Static HTML/JavaScript ports of the Python scripts in
+  <code>BEanalysed_2/Scripts/</code>. Every page reads data locally in
+  the browser (no server), and regenerates plots automatically as
+  inputs change.
+</div>
+
+<div class="tool-list">
+  <div class="tool-card">
+    <h3><a href="BE_ROC.html">ROC</a></h3>
+    <p><code>BE_ROC.py</code> — cumulative rank plots and combined ROC
+    curves from a consolidated MaGeCK xlsx.</p>
+  </div>
+  <div class="tool-card">
+    <h3><a href="BE_ROC_PerGene.html">ROC per Gene</a></h3>
+    <p><code>BE_ROC_PerGene.py</code> — ROC curves split by gene and by
+    positive-consequence category.</p>
+  </div>
+  <div class="tool-card">
+    <h3><a href="BE_lollipop.html">Lollipop</a></h3>
+    <p><code>BEanalyzed_lollipop_plot.py</code> — lollipop plot of LFC
+    vs protein position with feature annotations and biological
+    thresholds.</p>
+  </div>
+  <div class="tool-card">
+    <h3><a href="BE_scatter.html">Scatter</a></h3>
+    <p><code>scatter_plot_BEanalysed.py</code> — pairwise scatter of two
+    sheets by shared id, with Pearson <em>r</em>.</p>
+  </div>
+  <div class="tool-card">
+    <h3><a href="RepeatOnRepeat.html">Repeat on Repeat</a></h3>
+    <p><code>RepeatOnRepeat.py</code> — pairwise scatter of repeat
+    columns across multiple TSV files.</p>
+  </div>
+  <div class="tool-card">
+    <h3><a href="test_ROC_perf.html">ROC Quantile Sweep</a></h3>
+    <p><code>test_ROC_perf.py</code> — AUC as a function of the negative
+    control quantile window, with LOWESS smoothing.</p>
+  </div>
+  <div class="tool-card">
+    <h3><a href="structure_viewer.html">3D Structure Viewer</a></h3>
+    <p>In-browser port of <code>chimeraX.sh</code> /
+    <code>chimeraX_clusters.sh</code> using
+    <a href="https://3dmol.csb.pitt.edu/" target="_blank" rel="noreferrer">3Dmol.js</a>.
+    Load a PDB/mmCIF plus one or more <code>.defattr</code> files and
+    colour residues dynamically with your choice of palette,
+    representation, and highlight mode.</p>
+  </div>
+</div>
+
+</body>
+</html>

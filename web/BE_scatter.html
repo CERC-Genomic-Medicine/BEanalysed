@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>BE Scatter Comparison</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+</head>
+<body>
+
+<h1>BE Scatter — Dataset Comparison</h1>
+<div class="subtitle">
+  In-browser port of <code>scatter_plot_BEanalysed.py</code>. Pick two
+  sheets and a variable; the scatter (with Pearson <em>r</em>) is
+  regenerated on every change.
+</div>
+
+<div class="panel">
+  <div class="controls-grid">
+    <div>
+      <label for="fileInput">Excel file (.xlsx)</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" />
+    </div>
+    <div>
+      <label for="sheetA">Sheet A (x-axis)</label>
+      <select id="sheetA"></select>
+    </div>
+    <div>
+      <label for="sheetB">Sheet B (y-axis)</label>
+      <select id="sheetB"></select>
+    </div>
+    <div>
+      <label for="varSel">Variable</label>
+      <select id="varSel">
+        <option value="lfc" selected>lfc</option>
+        <option value="p_value">p_value</option>
+        <option value="fdr">fdr</option>
+      </select>
+    </div>
+    <div>
+      <label for="colorSel">Color by</label>
+      <select id="colorSel">
+        <option value="none">None (black)</option>
+        <option value="Consequence" selected>Consequence</option>
+      </select>
+    </div>
+    <div>
+      <label for="alphaSel">Alpha</label>
+      <select id="alphaSel">
+        <option value="none">None (solid)</option>
+        <option value="all_little_bit">0.5 for all</option>
+        <option value="Significance">Significance (p-value)</option>
+      </select>
+    </div>
+    <div>
+      <label for="pThresh">p-value threshold (for Significance alpha)</label>
+      <input type="number" id="pThresh" step="0.001" min="0" max="1" value="0.05" />
+    </div>
+    <div>
+      <label for="bLine">Biological significance quantile (optional)</label>
+      <input type="number" id="bLine" step="0.001" min="0" max="0.5" placeholder="e.g. 0.05" />
+    </div>
+    <div>
+      <label for="elementSel">Elements</label>
+      <select id="elementSel">
+        <option value="all" selected>all</option>
+        <option value="coding_only">coding only</option>
+      </select>
+    </div>
+    <div>
+      <label>Proteins (optional filter)</label>
+      <div id="proteinList" class="checklist"></div>
+    </div>
+    <div>
+      <label><input type="checkbox" id="squareFmt" /> Square 1:1 axes</label>
+    </div>
+  </div>
+  <div id="status" class="status info hidden"></div>
+</div>
+
+<div id="scatterPanel" class="panel hidden">
+  <div id="scatterPlot" class="plot plot-fill"></div>
+</div>
+
+<script src="common.js"></script>
+<script>
+BE.installNav('BE_scatter.html');
+BE.installAutoResize();
+
+const CODING = new Set(['synonymous','missense','splice','non-sense']);
+const state = { sheets: {}, proteins: [] };
+
+const els = {
+  file: document.getElementById('fileInput'),
+  a:    document.getElementById('sheetA'),
+  b:    document.getElementById('sheetB'),
+  v:    document.getElementById('varSel'),
+  color:document.getElementById('colorSel'),
+  alpha:document.getElementById('alphaSel'),
+  p:    document.getElementById('pThresh'),
+  bl:   document.getElementById('bLine'),
+  elem: document.getElementById('elementSel'),
+  prot: document.getElementById('proteinList'),
+  sq:   document.getElementById('squareFmt'),
+};
+const status = BE.Status(document.getElementById('status'));
+const panel  = document.getElementById('scatterPanel');
+
+const scheduleRender = BE.debounce(render, 100);
+for (const k of ['a','b','v','color','alpha','p','bl','elem','sq']) {
+  els[k].addEventListener('change', scheduleRender);
+  els[k].addEventListener('input', scheduleRender);
+}
+
+els.file.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  status.info(`Reading ${file.name}...`);
+  try {
+    const { sheets } = await BE.readWorkbook(file);
+    state.sheets = sheets;
+    const names = Object.keys(sheets);
+    els.a.innerHTML = names.map(n => `<option>${n}</option>`).join('');
+    els.b.innerHTML = names.map(n => `<option>${n}</option>`).join('');
+    if (names.length > 1) els.b.value = names[1];
+    const allProt = new Set();
+    for (const rows of Object.values(sheets))
+      for (const r of rows) if (r.proteins) allProt.add(r.proteins);
+    state.proteins = [...allProt].sort();
+    BE.renderChecklist(els.prot, state.proteins, scheduleRender, state.proteins);
+    status.info(`Loaded ${names.length} sheet(s), ${state.proteins.length} protein(s).`);
+    scheduleRender();
+  } catch (err) {
+    console.error(err);
+    status.error(`Failed to read file: ${err.message}`);
+  }
+});
+
+function render() {
+  if (!state.sheets || !Object.keys(state.sheets).length) return;
+  const A = els.a.value, B = els.b.value;
+  if (!A || !B) return;
+  const variable = els.v.value;
+  const alphaMode = els.alpha.value;
+  const pThresh = parseFloat(els.p.value);
+  const bLine = els.bl.value === '' ? null : parseFloat(els.bl.value);
+  const coding = els.elem.value === 'coding_only';
+  const colorMode = els.color.value;
+  const selectedProts = new Set(BE.getChecked(els.prot));
+
+  const dfA = state.sheets[A];
+  const dfB = state.sheets[B];
+  const mapB = new Map();
+  for (const r of dfB) if (r.id != null) mapB.set(r.id, r);
+
+  const merged = [];
+  for (const ra of dfA) {
+    if (ra.id == null) continue;
+    const rb = mapB.get(ra.id);
+    if (!rb) continue;
+    if (ra.Consequence !== rb.Consequence) continue;
+    if (selectedProts.size && !selectedProts.has(ra.proteins)) continue;
+    if (coding && !CODING.has(ra.Consequence)) continue;
+    const va = Number(ra[variable]), vb = Number(rb[variable]);
+    if (Number.isNaN(va) || Number.isNaN(vb)) continue;
+    merged.push({
+      id: ra.id,
+      xa: va, yb: vb,
+      Consequence: ra.Consequence,
+      pa: Number(ra.p_value), pb: Number(rb.p_value),
+      proteins: ra.proteins,
+    });
+  }
+
+  if (!merged.length) {
+    panel.classList.add('hidden');
+    status.warn('No shared ids between the two sheets (with current filters).');
+    return;
+  }
+
+  // alpha
+  let alphaArr;
+  if (alphaMode === 'Significance') {
+    alphaArr = merged.map(r =>
+      (r.pa <= pThresh || r.pb <= pThresh) ? 1 : 0.4
+    );
+  } else if (alphaMode === 'all_little_bit') {
+    alphaArr = merged.map(() => 0.5);
+  } else {
+    alphaArr = merged.map(() => 1);
+  }
+
+  // group by consequence if coloring
+  const traces = [];
+  if (colorMode === 'Consequence') {
+    const byCat = {};
+    merged.forEach((r, i) => { (byCat[r.Consequence] = byCat[r.Consequence] || []).push(i); });
+    for (const cat of Object.keys(byCat).sort()) {
+      const idxs = byCat[cat];
+      traces.push({
+        x: idxs.map(i => merged[i].xa),
+        y: idxs.map(i => merged[i].yb),
+        mode: 'markers', type: 'scatter', name: cat,
+        marker: {
+          color: BE.CONSEQUENCE_COLOR[cat] || 'silver',
+          symbol: BE.CONSEQUENCE_MARKER[cat] || 'circle',
+          size: 8,
+          opacity: idxs.map(i => alphaArr[i]),
+        },
+      });
+    }
+  } else {
+    traces.push({
+      x: merged.map(r => r.xa), y: merged.map(r => r.yb),
+      mode: 'markers', type: 'scatter', name: 'points',
+      marker: { color: 'black', size: 8, opacity: alphaArr },
+    });
+  }
+
+  // biological lines from negative controls
+  const shapes = [];
+  if (bLine != null && !Number.isNaN(bLine)) {
+    const negA = dfA.filter(r => r.Controls === 'negative_control')
+      .map(r => Number(r[variable])).filter(v => !Number.isNaN(v));
+    const negB = dfB.filter(r => r.Controls === 'negative_control')
+      .map(r => Number(r[variable])).filter(v => !Number.isNaN(v));
+    if (negA.length) {
+      const xlo = BE.quantile(negA, bLine), xhi = BE.quantile(negA, 1 - bLine);
+      shapes.push({ type: 'line', x0: xlo, x1: xlo, yref: 'paper', y0: 0, y1: 1,
+        line: { color: 'red', dash: 'dash', width: 1 } });
+      shapes.push({ type: 'line', x0: xhi, x1: xhi, yref: 'paper', y0: 0, y1: 1,
+        line: { color: 'red', dash: 'dash', width: 1 } });
+    }
+    if (negB.length) {
+      const ylo = BE.quantile(negB, bLine), yhi = BE.quantile(negB, 1 - bLine);
+      shapes.push({ type: 'line', y0: ylo, y1: ylo, xref: 'paper', x0: 0, x1: 1,
+        line: { color: 'red', dash: 'dash', width: 1 } });
+      shapes.push({ type: 'line', y0: yhi, y1: yhi, xref: 'paper', x0: 0, x1: 1,
+        line: { color: 'red', dash: 'dash', width: 1 } });
+    }
+  }
+
+  const r = BE.pearsonR(merged.map(m => m.xa), merged.map(m => m.yb));
+  const layout = {
+    title: `${A}  vs  ${B}  (${variable})`,
+    xaxis: { title: `${A} — ${variable}` },
+    yaxis: { title: `${B} — ${variable}` },
+    shapes,
+    annotations: [{
+      xref: 'paper', yref: 'paper', x: 0.98, y: 0.02,
+      xanchor: 'right', yanchor: 'bottom', showarrow: false,
+      bgcolor: 'rgba(255,255,255,0.75)',
+      text: `r = ${Number.isNaN(r) ? '—' : r.toFixed(3)}   (n = ${merged.length})`,
+    }],
+    margin: { t: 50, r: 20, b: 55, l: 65 },
+    legend: { y: 0.98 },
+  };
+  if (els.sq.checked) {
+    const all = [...merged.map(m => m.xa), ...merged.map(m => m.yb)];
+    const lo = Math.min(...all), hi = Math.max(...all);
+    const pad = (hi - lo) * 0.05;
+    layout.xaxis.range = [lo - pad, hi + pad];
+    layout.yaxis.range = [lo - pad, hi + pad];
+    layout.yaxis.scaleanchor = 'x';
+    layout.yaxis.scaleratio = 1;
+  }
+  Plotly.newPlot('scatterPlot', traces, layout, { responsive: true });
+  panel.classList.remove('hidden');
+  status.info(`Plotted ${merged.length} shared point(s).`);
+}
+</script>
+</body>
+</html>

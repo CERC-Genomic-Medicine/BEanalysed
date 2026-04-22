@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>BE ROC — Dynamic Frontend</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+</head>
+<body>
+
+<h1>BE ROC</h1>
+<div class="subtitle">
+  In-browser port of <code>BE_ROC.py</code>. Upload a consolidated
+  <code>.xlsx</code> file, pick sheets / rank column; ROC and rank
+  cumulative plots regenerate automatically.
+</div>
+
+<div class="panel">
+  <div class="controls-grid">
+    <div>
+      <label for="fileInput">Excel file (.xlsx)</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" />
+    </div>
+    <div>
+      <label for="valueSelect">Plotted value (rank column)</label>
+      <select id="valueSelect">
+        <option value="neg" selected>neg  (neg|rank)</option>
+        <option value="pos">pos  (pos|rank)</option>
+      </select>
+    </div>
+    <div>
+      <label>Sheets (uncheck to remove from analysis)</label>
+      <div id="sheetList" class="checklist">
+        <em style="color: var(--muted); font-size: 13px;">No file loaded.</em>
+      </div>
+    </div>
+  </div>
+  <div id="status" class="status info hidden"></div>
+</div>
+
+<div id="resultsPanel" class="panel hidden">
+  <h3>ROC curves</h3>
+  <div id="rocPlot" class="plot plot-fill"></div>
+  <h3>Dataset summary</h3>
+  <table class="summary-table" id="summaryTable">
+    <thead>
+      <tr>
+        <th>Sheet</th><th>Total (labeled)</th><th>Positive</th>
+        <th>Negative</th><th>AUC</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div id="rankPanel" class="panel hidden">
+  <h3>Ranks by category (cumulative fraction)</h3>
+  <div id="rankPlots" class="plots-row"></div>
+</div>
+
+<script src="common.js"></script>
+<script>
+BE.installNav('BE_ROC.html');
+BE.installAutoResize();
+
+const state = { sheets: {} };
+
+const fileInput = document.getElementById('fileInput');
+const sheetList = document.getElementById('sheetList');
+const valueSel  = document.getElementById('valueSelect');
+const statusEl  = document.getElementById('status');
+const status    = BE.Status(statusEl);
+
+const rankPanel    = document.getElementById('rankPanel');
+const rankPlots    = document.getElementById('rankPlots');
+const resultsPanel = document.getElementById('resultsPanel');
+const summaryBody  = document.querySelector('#summaryTable tbody');
+
+const scheduleRender = BE.debounce(render, 80);
+
+fileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  status.info(`Reading ${file.name}...`);
+  try {
+    const { sheets } = await BE.readWorkbook(file);
+    state.sheets = sheets;
+    BE.renderChecklist(sheetList, Object.keys(sheets), scheduleRender);
+    status.info(`Loaded ${Object.keys(sheets).length} sheet(s): ${Object.keys(sheets).join(', ')}`);
+    scheduleRender();
+  } catch (err) {
+    console.error(err);
+    status.error(`Failed to read file: ${err.message}`);
+  }
+});
+valueSel.addEventListener('change', scheduleRender);
+
+function render() {
+  if (Object.keys(state.sheets).length === 0) return;
+  status.clear();
+  const plottedValue = valueSel.value;
+  const rankCol = `${plottedValue}|rank`;
+  const selected = BE.getChecked(sheetList);
+  if (selected.length === 0) {
+    resultsPanel.classList.add('hidden');
+    rankPanel.classList.add('hidden');
+    status.error('Select at least one sheet.');
+    return;
+  }
+
+  const datasets = [];
+  const rankTraces = {};
+  const summary = [];
+
+  for (const label of selected) {
+    const rows = state.sheets[label];
+    if (!rows || rows.length === 0) continue;
+    if (!(rankCol in rows[0])) {
+      status.error(`Sheet "${label}" is missing column "${rankCol}".`);
+      return;
+    }
+
+    const byCat = {};
+    for (const r of rows) {
+      const cat = r.Consequence_Detail, rv = r[rankCol];
+      if (cat == null || rv == null || Number.isNaN(Number(rv))) continue;
+      (byCat[cat] = byCat[cat] || []).push(Number(rv));
+    }
+    const traces = [];
+    for (const cat of Object.keys(byCat).sort()) {
+      const sorted = byCat[cat].slice().sort((a, b) => a - b);
+      const y = sorted.map((_, i) => (i + 1) / sorted.length);
+      traces.push({ x: sorted, y, mode: 'lines', type: 'scatter', name: cat });
+    }
+    rankTraces[label] = traces;
+
+    const labeled = rows.filter(
+      r => r.Controls === 'negative_control' || r.Controls === 'positive_control'
+    );
+    const ranks = labeled.map(r => Number(r[rankCol])).filter(v => !Number.isNaN(v));
+    if (ranks.length === 0) {
+      summary.push({ label, total: 0, pos: 0, neg: 0, auc: NaN });
+      continue;
+    }
+    const maxRank = Math.max(...ranks);
+    const yPred = [], yTrue = [];
+    for (const r of labeled) {
+      const rv = Number(r[rankCol]); if (Number.isNaN(rv)) continue;
+      yPred.push(maxRank + 1 - rv);
+      yTrue.push(r.Controls === 'positive_control' ? 1 : 0);
+    }
+    datasets.push({ label, yPred, yTrue });
+    const nPos = yTrue.reduce((a, v) => a + v, 0);
+    summary.push({ label, total: yTrue.length, pos: nPos, neg: yTrue.length - nPos, auc: null });
+  }
+
+  rankPlots.innerHTML = '';
+  for (const label of Object.keys(rankTraces)) {
+    const div = document.createElement('div');
+    div.className = 'plot plot-grid-item';
+    rankPlots.appendChild(div);
+    Plotly.newPlot(div, rankTraces[label], {
+      title: `${label} — Ranks by Category`,
+      xaxis: { title: 'Rank' },
+      yaxis: { title: 'Cumulative Fraction', range: [0, 1] },
+      legend: { orientation: 'h', y: -0.2 },
+      margin: { t: 50, r: 20, b: 80, l: 60 },
+    }, { responsive: true });
+  }
+  rankPanel.classList.remove('hidden');
+
+  const palette = BE.getColorPalette(datasets.length);
+  const rocTraces = [];
+  datasets.forEach((d, i) => {
+    const { fpr, tpr, auc } = BE.rocCurve(d.yPred, d.yTrue);
+    summary.find(s => s.label === d.label).auc = auc;
+    rocTraces.push({
+      x: fpr, y: tpr, mode: 'lines', type: 'scatter',
+      name: `${d.label} (AUC = ${auc.toFixed(3)})`,
+      line: { width: 2.5, color: palette[i % palette.length] },
+    });
+  });
+  rocTraces.push({
+    x: [0, 1], y: [0, 1], mode: 'lines', type: 'scatter',
+    line: { dash: 'dash', color: 'grey', width: 1 },
+    showlegend: false,
+  });
+  Plotly.newPlot('rocPlot', rocTraces, {
+    title: `ROC Curves (value: ${plottedValue})`,
+    xaxis: { title: 'False Positive Rate', range: [0, 1] },
+    yaxis: { title: 'True Positive Rate', range: [0, 1], scaleanchor: 'x', scaleratio: 1 },
+    legend: { x: 0.55, y: 0.05 },
+    margin: { t: 60, r: 20, b: 60, l: 60 },
+  }, { responsive: true });
+  resultsPanel.classList.remove('hidden');
+
+  summaryBody.innerHTML = '';
+  for (const s of summary) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${s.label}</td><td>${s.total}</td><td>${s.pos}</td><td>${s.neg}</td>
+      <td>${s.auc == null || Number.isNaN(s.auc) ? '—' : s.auc.toFixed(3)}</td>`;
+    summaryBody.appendChild(tr);
+  }
+  status.info(`Plotted ${datasets.length} dataset(s).`);
+}
+</script>
+</body>
+</html>

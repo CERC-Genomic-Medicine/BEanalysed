@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>ROC — Quantile Sweep</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+</head>
+<body>
+
+<h1>ROC — Quantile Sweep</h1>
+<div class="subtitle">
+  In-browser port of <code>test_ROC_perf.py</code>. For each sheet,
+  sweeps the negative-control quantile <em>X</em>, masks out rows whose
+  LFC falls inside the <code>[Q<sub>X</sub>, Q<sub>1−X</sub>]</code>
+  window (unless they are positive controls), and computes AUC on the
+  <code>neg|rank</code> score. The best <em>X</em> (max AUC) is marked.
+</div>
+
+<div class="panel">
+  <div class="controls-grid">
+    <div>
+      <label for="fileInput">Excel file (.xlsx)</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" />
+    </div>
+    <div>
+      <label for="lfcCol">LFC column name</label>
+      <input type="text" id="lfcCol" value="lfc" />
+    </div>
+    <div>
+      <label for="xMin">X min</label>
+      <input type="number" id="xMin" value="0.0001" step="0.0001" min="0" max="0.5" />
+    </div>
+    <div>
+      <label for="xMax">X max</label>
+      <input type="number" id="xMax" value="0.01" step="0.0001" min="0" max="0.5" />
+    </div>
+    <div>
+      <label for="nSteps">Number of steps</label>
+      <input type="number" id="nSteps" value="200" step="10" min="10" max="1000" />
+    </div>
+    <div>
+      <label for="frac">LOWESS fraction (smoothing)</label>
+      <input type="number" id="frac" value="0.2" step="0.05" min="0.05" max="1" />
+    </div>
+  </div>
+  <div id="status" class="status info hidden"></div>
+</div>
+
+<div id="plotPanel" class="panel hidden">
+  <div id="grid" class="plots-row"></div>
+  <h3>Best quantile per sheet</h3>
+  <table class="summary-table" id="summary">
+    <thead><tr><th>Sheet</th><th>Best X</th><th>Best AUC</th>
+                <th>line_min</th><th>line_max</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script src="common.js"></script>
+<script>
+BE.installNav('test_ROC_perf.html');
+BE.installAutoResize();
+
+const state = { sheets: {} };
+const els = {
+  file: document.getElementById('fileInput'),
+  lfc:  document.getElementById('lfcCol'),
+  xMin: document.getElementById('xMin'),
+  xMax: document.getElementById('xMax'),
+  n:    document.getElementById('nSteps'),
+  frac: document.getElementById('frac'),
+};
+const status = BE.Status(document.getElementById('status'));
+const panel  = document.getElementById('plotPanel');
+const grid   = document.getElementById('grid');
+const sumBody = document.querySelector('#summary tbody');
+const scheduleRender = BE.debounce(render, 150);
+for (const k of ['lfc','xMin','xMax','n','frac']) {
+  els[k].addEventListener('input', scheduleRender);
+}
+
+els.file.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  status.info(`Reading ${file.name}...`);
+  try {
+    const { sheets } = await BE.readWorkbook(file);
+    state.sheets = sheets;
+    status.info(`Loaded ${Object.keys(sheets).length} sheet(s): ${Object.keys(sheets).join(', ')}`);
+    scheduleRender();
+  } catch (err) {
+    console.error(err);
+    status.error(`Failed to read file: ${err.message}`);
+  }
+});
+
+function linspace(lo, hi, n) {
+  const out = new Array(n);
+  for (let i = 0; i < n; i++) out[i] = lo + (hi - lo) * i / (n - 1);
+  return out;
+}
+
+function render() {
+  if (!Object.keys(state.sheets).length) return;
+  status.clear();
+
+  const lfcCol = els.lfc.value.trim();
+  const lo = parseFloat(els.xMin.value);
+  const hi = parseFloat(els.xMax.value);
+  const n  = Math.max(5, Math.floor(Number(els.n.value)));
+  const frac = Math.max(0.05, Math.min(1, Number(els.frac.value)));
+  if (!(lfcCol && hi > lo)) { status.warn('Check inputs.'); return; }
+
+  const Xs = linspace(lo, hi, n);
+  grid.innerHTML = ''; sumBody.innerHTML = '';
+
+  for (const label of Object.keys(state.sheets)) {
+    const rows = state.sheets[label];
+    if (!rows.length) continue;
+    if (!(lfcCol in rows[0]) || !('neg|rank' in rows[0]) || !('Controls' in rows[0])) {
+      status.warn(`Sheet "${label}" missing required columns.`);
+      continue;
+    }
+    const labeled = rows.filter(r =>
+      r.Controls === 'negative_control' || r.Controls === 'positive_control'
+    ).map(r => ({
+      lfc: Number(r[lfcCol]),
+      rank: Number(r['neg|rank']),
+      truth: r.Controls === 'positive_control' ? 1 : 0,
+    })).filter(r => !Number.isNaN(r.lfc) && !Number.isNaN(r.rank));
+    const negLfc = labeled.filter(r => r.truth === 0).map(r => r.lfc);
+    if (!negLfc.length) { status.warn(`No negative controls in "${label}".`); continue; }
+
+    const aucs = [], lines = [];
+    for (const X of Xs) {
+      const qLo = BE.quantile(negLfc, X);
+      const qHi = BE.quantile(negLfc, 1 - X);
+      const subset = labeled.filter(r =>
+        r.truth === 1 || r.lfc <= qLo || r.lfc >= qHi
+      );
+      if (!subset.length) { aucs.push(NaN); lines.push([qLo, qHi]); continue; }
+      const maxRank = Math.max(...subset.map(r => r.rank));
+      const yPred = subset.map(r => maxRank + 1 - r.rank);
+      const yTrue = subset.map(r => r.truth);
+      if (new Set(yTrue).size < 2) { aucs.push(NaN); lines.push([qLo, qHi]); continue; }
+      const { auc } = BE.rocCurve(yPred, yTrue);
+      aucs.push(auc); lines.push([qLo, qHi]);
+    }
+
+    const valid = aucs.map((v, i) => [v, i]).filter(([v]) => !Number.isNaN(v));
+    if (!valid.length) continue;
+    const [bestAuc, bestIdx] = valid.reduce((a, b) => b[0] > a[0] ? b : a);
+    const bestX = Xs[bestIdx];
+    const [bestLineMin, bestLineMax] = lines[bestIdx];
+
+    // smoothed curve
+    const validXs = valid.map(([, i]) => Xs[i]);
+    const validYs = valid.map(([v]) => v);
+    const sm = BE.lowess(validXs, validYs, frac);
+
+    const div = document.createElement('div');
+    div.className = 'plot plot-grid-item';
+    grid.appendChild(div);
+    Plotly.newPlot(div, [
+      { x: validXs, y: validYs, mode: 'markers', type: 'scatter',
+        marker: { color: 'steelblue', size: 5, opacity: 0.55 }, name: 'raw AUC' },
+      { x: sm.x, y: sm.y, mode: 'lines', type: 'scatter',
+        line: { color: 'crimson', width: 2 }, name: 'LOWESS' },
+      { x: [bestX], y: [bestAuc], mode: 'markers', type: 'scatter',
+        marker: { color: 'black', size: 12, symbol: 'star' },
+        name: `best X = ${bestX.toExponential(2)}` },
+    ], {
+      title: `${label} — AUC vs quantile X`,
+      xaxis: { title: 'Quantile X (neg. control trim)' },
+      yaxis: { title: 'AUC' },
+      margin: { t: 40, r: 20, b: 55, l: 60 },
+      legend: { x: 0.02, y: 0.02 },
+    }, { responsive: true });
+
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td>${label}</td>` +
+      `<td>${bestX.toExponential(3)}</td>` +
+      `<td>${bestAuc.toFixed(3)}</td>` +
+      `<td>${bestLineMin.toFixed(3)}</td>` +
+      `<td>${bestLineMax.toFixed(3)}</td>`;
+    sumBody.appendChild(tr);
+  }
+  panel.classList.remove('hidden');
+  status.info(`Swept ${Xs.length} quantile(s) across ${grid.childElementCount} sheet(s).`);
+}
+</script>
+</body>
+</html>

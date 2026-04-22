@@ -200,13 +200,41 @@ def read_delimited_file(
 		ValueError: If file cannot be parsed
 	"""
 	try:
-		return pd.read_csv(filepath, sep=None, engine='python', usecols=usecols)
-	except Exception as e:
-		raise ValueError(
-			f'Could not parse {filepath}. Expected tab, comma, or space '
-			f'delimited file with columns: {usecols}'
-		) from e
+		df = pd.read_csv(filepath, sep=r'\s+', engine='python')
+		if usecols is not None and not all(col in df.columns for col in usecols):
+			raise ValueError("Missing expected columns")
+		return df[usecols] if usecols else df
 
+	except Exception:
+		try:
+			df = pd.read_csv(filepath, sep=None, engine='python')
+			if usecols is not None and not all(col in df.columns for col in usecols):
+				raise ValueError("Missing expected columns")
+
+			# Check column names and all string values across the entire dataframe
+			cols_with_spaces = [c for c in df.columns if isinstance(c, str) and ' ' in c]
+			
+			vals_with_spaces = [
+				col
+				for col in df.columns
+				if df[col].dtype == object and df[col].dropna().str.contains(' ').any()
+			]
+
+			flagged = set(cols_with_spaces) | set(vals_with_spaces)
+			if flagged:
+				print(
+					f"Warning: spaces detected in columns {sorted(flagged)} "
+					f"(names and/or values). Consider sanitizing with:\n"
+					f"  awk '{{gsub(/ +/, \"\\t\"); print}}' {filepath} > {filepath}.sanitized.tsv"
+				)
+
+			return df[usecols] if usecols else df
+
+		except Exception as e:
+			raise ValueError(
+				f'Could not parse {filepath}. Expected tab, comma, or space '
+				f'delimited file with columns: {usecols}'
+			) from e
 
 def read_excel_sheets(
 	excel_files: Sequence[Union[str, Path]],
@@ -285,7 +313,7 @@ class MaGeCKParser:
 		Returns:
 			DataFrame with parsed MaGeCK data
 		"""
-		mage = pd.read_csv(filepath, sep='\t', header=0)
+		mage = pd.read_csv(filepath, sep=r'\s+', header=0)
 		
 		if value_column:
 			return pd.DataFrame({
@@ -315,7 +343,6 @@ class MaGeCKParser:
 			mage['neg|fdr'],
 			mage['pos|fdr']
 		)
-		
 		return result
 
 

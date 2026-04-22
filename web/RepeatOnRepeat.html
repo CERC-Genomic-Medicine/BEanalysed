@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Repeat on Repeat</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+</head>
+<body>
+
+<h1>Repeat on Repeat</h1>
+<div class="subtitle">
+  In-browser port of <code>RepeatOnRepeat.py</code>. Drop multiple
+  MaGeCK-style TSV files whose filenames encode experimental conditions
+  (e.g. <code>UNT</code>/<code>TREAT</code>) and whose <code>sgrna</code>
+  column ends with <code>_r&lt;N&gt;</code> for repeat N. Plots the
+  scatter grid of repeat-vs-repeat per condition.
+</div>
+
+<div class="panel">
+  <div class="controls-grid">
+    <div>
+      <label for="filesInput">TSV files (multiple)</label>
+      <input type="file" id="filesInput" accept=".tsv,.txt" multiple />
+    </div>
+    <div>
+      <label for="xvar">xvar (comma-separated <code>A/B</code> groups)</label>
+      <input type="text" id="xvar" value="UNT/TREAT" />
+    </div>
+    <div>
+      <label for="varCol">Column to compare</label>
+      <input type="text" id="varCol" value="LFC" />
+    </div>
+  </div>
+  <div id="status" class="status info hidden"></div>
+</div>
+
+<div id="plotPanel" class="panel hidden">
+  <div id="grid" class="plots-row"></div>
+</div>
+
+<script src="common.js"></script>
+<script>
+BE.installNav('RepeatOnRepeat.html');
+BE.installAutoResize();
+
+const state = { files: [] }; // [{name, rows}]
+
+const els = {
+  f: document.getElementById('filesInput'),
+  x: document.getElementById('xvar'),
+  v: document.getElementById('varCol'),
+};
+const status = BE.Status(document.getElementById('status'));
+const panel = document.getElementById('plotPanel');
+const grid = document.getElementById('grid');
+const scheduleRender = BE.debounce(render, 100);
+els.x.addEventListener('input', scheduleRender);
+els.v.addEventListener('input', scheduleRender);
+
+els.f.addEventListener('change', async (e) => {
+  const files = [...e.target.files];
+  if (!files.length) return;
+  status.info(`Reading ${files.length} file(s)...`);
+  try {
+    const loaded = [];
+    for (const f of files) {
+      const rows = await BE.readTable(f);
+      loaded.push({ name: f.name, rows });
+    }
+    state.files = loaded;
+    status.info(`Loaded ${loaded.length} file(s).`);
+    scheduleRender();
+  } catch (err) {
+    console.error(err);
+    status.error(`Failed to read file: ${err.message}`);
+  }
+});
+
+function parseTreatmentLevels(xvar) {
+  return xvar.split(',').map(g =>
+    g.split('/').map(s => s.trim()).filter(Boolean).sort((a, b) => b.length - a.length)
+  );
+}
+
+function extractLabel(filename, levels) {
+  const base = filename.replace(/\.[^./]+$/, '');
+  const hits = [];
+  for (const group of levels) {
+    const found = group.find(lvl => new RegExp(lvl).test(base));
+    if (!found) return null;
+    hits.push(found);
+  }
+  return hits.join('_');
+}
+
+function render() {
+  if (!state.files.length) return;
+  status.clear();
+  const levels = parseTreatmentLevels(els.x.value);
+  const col = els.v.value.trim();
+  if (!col) { status.warn('Set a column to compare.'); return; }
+
+  // For each file: label, and per-sgrna value.
+  const fileInfo = [];
+  for (const f of state.files) {
+    const label = extractLabel(f.name, levels);
+    if (!label) { status.warn(`File "${f.name}" didn't match xvar pattern.`); continue; }
+    if (!f.rows.length || !(col in f.rows[0])) {
+      status.warn(`File "${f.name}" has no "${col}" column.`); continue;
+    }
+    fileInfo.push({ name: f.name, label, rows: f.rows });
+  }
+  if (!fileInfo.length) { panel.classList.add('hidden'); return; }
+
+  // Group rows by base-sgrna (strip _r<digits>).
+  // Output: label -> repeat -> Map(base -> value)
+  const data = {};
+  for (const f of fileInfo) {
+    data[f.label] = data[f.label] || {};
+    for (const r of f.rows) {
+      const sg = r.sgrna;
+      if (!sg) continue;
+      const m = /^(.*?)(?:_r(\d+))?$/.exec(String(sg));
+      if (!m) continue;
+      const base = m[1];
+      const rep  = m[2] ? Number(m[2]) : null;
+      if (rep == null) continue;
+      const v = Number(r[col]);
+      if (Number.isNaN(v)) continue;
+      data[f.label][rep] = data[f.label][rep] || new Map();
+      data[f.label][rep].set(base, v);
+    }
+  }
+
+  grid.innerHTML = '';
+  const labels = Object.keys(data).sort();
+  for (const label of labels) {
+    const reps = Object.keys(data[label]).map(Number).sort((a, b) => a - b);
+    if (reps.length < 2) continue;
+    for (let i = 0; i < reps.length; i++) {
+      for (let j = i + 1; j < reps.length; j++) {
+        const r1 = reps[i], r2 = reps[j];
+        const m1 = data[label][r1], m2 = data[label][r2];
+        const xs = [], ys = [];
+        for (const [base, v] of m1) {
+          if (m2.has(base)) { xs.push(v); ys.push(m2.get(base)); }
+        }
+        if (xs.length < 2) continue;
+        const r = BE.pearsonR(xs, ys);
+        const lo = Math.min(...xs, ...ys), hi = Math.max(...xs, ...ys);
+        const div = document.createElement('div');
+        div.className = 'plot plot-grid-item';
+        grid.appendChild(div);
+        Plotly.newPlot(div, [
+          { x: xs, y: ys, mode: 'markers', type: 'scatter',
+            marker: { color: 'steelblue', size: 5, opacity: 0.5 },
+            name: 'points', showlegend: false },
+          { x: [lo, hi], y: [lo, hi], mode: 'lines', type: 'scatter',
+            line: { color: 'black', dash: 'dash', width: 1 },
+            showlegend: false, hoverinfo: 'skip' },
+        ], {
+          title: `${label}: repeat ${r1} vs ${r2}`,
+          xaxis: { title: `repeat ${r1}` },
+          yaxis: { title: `repeat ${r2}`, scaleanchor: 'x', scaleratio: 1 },
+          annotations: [{
+            xref: 'paper', yref: 'paper', x: 0.98, y: 0.02,
+            xanchor: 'right', yanchor: 'bottom', showarrow: false,
+            text: `r = ${Number.isNaN(r) ? '—' : r.toFixed(2)}   (n = ${xs.length})`,
+            bgcolor: 'rgba(255,255,255,0.75)',
+          }],
+          margin: { t: 40, r: 20, b: 50, l: 60 },
+        }, { responsive: true });
+      }
+    }
+  }
+  panel.classList.remove('hidden');
+  status.info(`Rendered ${grid.childElementCount} pairwise plot(s).`);
+}
+</script>
+</body>
+</html>
