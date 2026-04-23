@@ -649,6 +649,10 @@ The pipeline provides informative error messages for common issues:
 
 Vincent Chapdelaine (vincent.chapdelaine@mcgill.ca)
 
-## Version
+## WEB version
+### Usage
 
-2.0 (2024)
+Simply download the git hub branch and opening index will provide you with access to the representation of your data.
+
+#### Requiered data
+the representation only replaces the display scripts, so the consolidated file is still requiered along with the domain file / structure file / liftover file (for their associated representation). Necessary files are prompted at start of a given representation.
